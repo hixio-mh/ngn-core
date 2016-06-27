@@ -85,7 +85,7 @@ class Store extends NGN.EventEmitter {
       const me = this
       events.forEach(function (eventName) {
         me.on(eventName, function () {
-          let args = Array.from(arguments)
+          let args = NGN.slice(arguments)
           args.shift()
           args.push(me)
           NGN.BUS.emit(eventName, args)
@@ -263,7 +263,7 @@ class Store extends NGN.EventEmitter {
    * to the store's #model.
    */
   load () {
-    let array = Array.isArray(arguments[0]) ? arguments[0] : Array.from(arguments)
+    let array = Array.isArray(arguments[0]) ? arguments[0] : NGN.slice(arguments)
     this.bulk('load', array)
   }
 
@@ -274,7 +274,7 @@ class Store extends NGN.EventEmitter {
    */
   reload (data) {
     this.clear()
-    let array = Array.isArray(arguments[0]) ? arguments[0] : Array.from(arguments)
+    let array = Array.isArray(arguments[0]) ? arguments[0] : NGN.slice(arguments)
     this.bulk('reload', array)
   }
 

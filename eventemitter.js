@@ -77,7 +77,7 @@ NGN.inherit(Object.defineProperties({}, {
       if (preventDefaultAction && e.hasOwnProperty('preventDefault')) {
         e.preventDefault()
       }
-      let args = Array.from(arguments)
+      let args = NGN.slice(arguments)//NGN.slice(arguments)
       args.unshift(eventName)
       me.emit.apply(me, args)
     }
@@ -111,7 +111,7 @@ NGN.inherit(Object.defineProperties({}, {
 
     const me = this
     let listener = function () {
-      let args = Array.from(arguments)
+      let args = NGN.slice(arguments)
 
       if (payload) {
         args.push(payload)
@@ -214,7 +214,7 @@ NGN.inherit(Object.defineProperties({}, {
   queue: NGN.const(function (eventName, delay) {
     if (!this.queued.hasOwnProperty(eventName)) {
       const me = this
-      let args = Array.from(arguments)
+      let args = NGN.slice(arguments)
       args.splice(1, 1)
 
       this.queued[eventName] = setTimeout(function () {

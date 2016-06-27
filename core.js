@@ -272,6 +272,9 @@ Object.defineProperties(NGN, {
    * The object properties get copied to.
    */
   inherit: NGN.const(function (source, dest) {
+    if (!source || !dest) {
+      return
+    }
     source = typeof source === 'function' ? source.prototype : source
     dest = typeof dest === 'function' ? dest.prototype : dest
     Object.getOwnPropertyNames(source).forEach(function (attr) {
@@ -295,7 +298,7 @@ Object.defineProperties(NGN, {
    * @private
    */
   slice: NGN.private(function (obj) {
-    return Array.from(obj)
+    return Array.prototype.slice.call(obj)
   }),
 
   /**

@@ -337,7 +337,7 @@ class Model extends NGN.EventEmitter {
     if (NGN.BUS) {
       events.forEach(function (eventName) {
         me.on(eventName, function () {
-          let args = Array.from(arguments)
+          let args = NGN.slice(arguments)
           args.push(me)
           NGN.BUS.emit.apply(NGN.BUS, args)
         })
