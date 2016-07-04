@@ -27,7 +27,8 @@ class CustomException extends Error { // eslint-disable-line
     }
     this.hasOwnProperty('custom') && delete this.custom
 
-    if (Error.prepareStackTrace) {
+    if (NGN.nodelike || Error.prepareStackTrace) {
+    //   console.log('++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
       // Capture the stack trace on a new error so the detail can be saved as a structured trace.
       Error.prepareStackTrace = function (_, stack) { return stack }
 
