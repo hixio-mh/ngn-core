@@ -339,6 +339,7 @@ class Model extends NGN.EventEmitter {
         me.on(eventName, function () {
           let args = NGN.slice(arguments)
           args.push(me)
+          args.unshift(eventName)
           NGN.BUS.emit.apply(NGN.BUS, args)
         })
       })
