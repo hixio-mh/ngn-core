@@ -375,6 +375,10 @@ Object.defineProperties(NGN, {
    * Returns the type (all lower case).
    */
   typeof: NGN.define(false, false, false, function (el) {
-    return Object.prototype.toString.call(el).split(' ')[1].replace(/\]|\[/gi, '').toLowerCase()
+    let value = Object.prototype.toString.call(el).split(' ')[1].replace(/\]|\[/gi, '').toLowerCase()
+    if (value === 'function') {
+      value = el.name || 'function'
+    }
+    return value.toLowerCase()
   })
 })

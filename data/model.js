@@ -212,31 +212,31 @@ class Model extends NGN.EventEmitter {
 
       _nativeValidators: NGN.privateconst({
         min: function (min, value) {
-          if (value instanceof Array) {
+          if (NGN.typeof(value) === 'array') {
             return value.length >= min
           }
-          if (value instanceof Number) {
+          if (NGN.typeof(value) === 'number') {
             return value >= min
           }
-          if (value instanceof String) {
+          if (NGN.typeof(value) === 'string') {
             return value.trim().length >= min
           }
-          if (value instanceof Date) {
+          if (NGN.typeof(value) === 'date') {
             return value.parse() >= min.parse()
           }
           return false
         },
         max: function (max, value) {
-          if (value instanceof Array) {
+          if (NGN.typeof(value) === 'array') {
             return value.length <= max
           }
-          if (value instanceof Number) {
+          if (NGN.typeof(value) === 'number') {
             return value <= max
           }
-          if (value instanceof String) {
+          if (NGN.typeof(value) === 'string') {
             return value.trim().length <= max
           }
-          if (value instanceof Date) {
+          if (NGN.typeof(value) === 'date') {
             return value.parse() <= max.parse()
           }
           return false
@@ -244,8 +244,8 @@ class Model extends NGN.EventEmitter {
         enum: function (valid, value) {
           return valid.indexOf(value) >= 0
         },
-        required: function (field) {
-          return this.hasOwnProperty(field)
+        required: function (field, value) {
+          return me.hasOwnProperty(field) && me[value] !== null
         }
       }),
 
@@ -308,6 +308,14 @@ class Model extends NGN.EventEmitter {
 
     // Add fields
     Object.keys(this.fields).forEach(function (field) {
+      if (typeof me.fields[field] !== 'object' && me.fields[field] !== null) {
+        me.fields[field] = {
+          required: true,
+          type: me.fields[field],
+          default: null,
+          name: field
+        }
+      }
       me.addField(field, true)
     })
 
@@ -406,6 +414,7 @@ class Model extends NGN.EventEmitter {
    * Indicates the record is valid.
    */
   get valid () {
+    this.validate()
     return this.invalidDataAttributes.length === 0
   }
 
@@ -602,6 +611,8 @@ class Model extends NGN.EventEmitter {
     let _pass = true
     let me = this
 
+    this.invalidDataAttributes = []
+
     // Single Attribute Validation
     if (attribute) {
       if (this.validators.hasOwnProperty(attribute)) {
@@ -611,7 +622,10 @@ class Model extends NGN.EventEmitter {
             return false
           }
         }
-        return true
+        if (!this.validateDataType(attribute)) {
+          this.invalidDataAttributes.push(attribute)
+        }
+        return
       }
     }
 
@@ -635,6 +649,38 @@ class Model extends NGN.EventEmitter {
           }
         }
       }
+    }
+
+    this.datafields.forEach(function (field) {
+      if (!me.validateDataType(field) && me.raw.hasOwnProperty(field)) {
+        me.invalidDataAttributes.push(field)
+      }
+    })
+
+    return
+  }
+
+  /**
+   * @method validateDataType
+   * Indicates the data types match.
+   * @param {string} fieldname
+   * Name of the field whose data should be validated.
+   * @private
+   * @return {boolean}
+   */
+  validateDataType (field) {
+    const fieldType = NGN.typeof(this[field])
+    const expectedType = NGN.typeof(this.fields[field].type)
+
+    if (fieldType !== 'null') {
+      return fieldType === expectedType
+    }
+
+    if (this[field] === null && this.fields[field].required) {
+      if (this.autoid && field === this.idAttribute) {
+        return true
+      }
+      return false
     }
 
     return true
@@ -738,7 +784,7 @@ class Model extends NGN.EventEmitter {
 
     let me = this
     this.relationships.forEach(function (r) {
-      rtn[r] = me[r].data
+      rtn[r] = me.rawjoins[r].data
     })
 
     return rtn
@@ -749,7 +795,7 @@ class Model extends NGN.EventEmitter {
    * Add a data field after the initial model definition.
    * @param {string} fieldname
    * The name of the field.
-   * @param {object} [fieldonfiguration=null]
+   * @param {object} [fieldConfiguration=null]
    * The field configuration (see cfg#fields for syntax).
    * @param {boolean} [suppressEvents=false]
    * Set to `true` to prevent events from firing when the field is added.
@@ -837,7 +883,7 @@ class Model extends NGN.EventEmitter {
         if (me.fields[field].hasOwnProperty('required')) {
           if (me.fields[field].required) {
             me.addValidator(field, function (val) {
-              return me._nativeValidators.required(val)
+              return me._nativeValidators.required(field, val)
             })
           }
         }
@@ -905,7 +951,7 @@ class Model extends NGN.EventEmitter {
     cfg.required = NGN.coalesce(cfg.required, true)
     cfg.default = cfg.default || null
 
-    const me = this
+    let me = this
     let entityType = 'model'
     if (cfg.type instanceof NGN.DATA.Store) {
       entityType = 'store'
@@ -965,7 +1011,7 @@ class Model extends NGN.EventEmitter {
    */
   applyModelMonitor (name) {
     const model = this.rawjoins[name]
-    const me = this
+    let me = this
 
     model.on('field.update', function (delta) {
       me.emit('field.update', {
@@ -1187,9 +1233,10 @@ class Model extends NGN.EventEmitter {
           me.id = data[key]
         }
       } else if (me.joins.hasOwnProperty(key)) {
-        let tmp = new me.getRelated(key).type() // eslint-disable-line new-cap
-        tmp.load(data[key])
-        me.rawjoin[key] = tmp
+        // let tmp = new me.getRelated(key).type() // eslint-disable-line new-cap
+        // tmp.load(data[key])
+        // me.rawjoin[key] = tmp
+        me.rawjoins[key].load(data[key])
       } else {
         console.warn(key + ' was specified as a data field but is not defined in the model.')
       }

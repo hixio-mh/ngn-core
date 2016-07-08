@@ -140,6 +140,30 @@ class Store extends NGN.EventEmitter {
   }
 
   /**
+   * @property {NGN.DATA.Model} first
+   * Return the first record in the store. Returns `null`
+   * if the store is empty.
+   */
+  get first () {
+    if (this.records.length === 0) {
+      return null
+    }
+    return this.records[0]
+  }
+
+  /**
+   * @property {NGN.DATA.Model} last
+   * Return the last record in the store. Returns `null`
+   * if the store is empty.
+   */
+  get last () {
+    if (this.records.length === 0) {
+      return null
+    }
+    return this.records[this.records.length - 1]
+  }
+
+  /**
    * @method add
    * Add a data record.
    * @param {NGN.DATA.Model|object} data
