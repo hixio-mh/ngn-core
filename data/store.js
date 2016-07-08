@@ -150,6 +150,8 @@ class Store extends NGN.EventEmitter {
    * @param {boolean} [suppressEvent=false]
    * Set this to `true` to prevent the `record.create` event
    * from firing.
+   * @return {NGN.DATA.Model}
+   * Returns the new record.
    */
   add (data, suppressEvent) {
     let record
@@ -189,6 +191,7 @@ class Store extends NGN.EventEmitter {
     this._data.push(record)
     !this._loading && this._created.indexOf(record) < 0 && this._created.push(record)
     !NGN.coalesce(suppressEvent, false) && this.emit('record.create', record)
+    return record
   }
 
   /**
@@ -317,6 +320,10 @@ class Store extends NGN.EventEmitter {
    * than using a reference to a data model or an index
    * number (index is fastest).
    * @fires record.delete
+   * @returns {NGN.DATA.Model}
+   * Returns the data model that was just removed. If a model
+   * is unavailable (i.e. remove didn't find the specified record),
+   * this will return `null`.
    */
   remove (data, suppressEvents) {
     let removedRecord = []
@@ -355,7 +362,11 @@ class Store extends NGN.EventEmitter {
       if (!NGN.coalesce(suppressEvents, false)) {
         this.emit('record.delete', removedRecord)
       }
+
+      return removedRecord
     }
+
+    return null
   }
 
   /**
