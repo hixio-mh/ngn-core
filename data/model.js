@@ -965,7 +965,6 @@ class Model extends NGN.EventEmitter {
 
     if (entityType === 'store') {
       let storeCfg = {}
-console.log('Recognized Store as', name)
       if (cfg.type instanceof NGN.DATA.Store) {
         this.rawjoins[name] = cfg.type
         storeCfg = null
