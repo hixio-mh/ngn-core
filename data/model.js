@@ -543,7 +543,7 @@ class Model extends NGN.EventEmitter {
     */
   addValidator (property, validator) {
     if (!this.hasOwnProperty(property)) {
-      console.warn('No validator could be create for ' + property.toUpperCase() + '. It is not an attribute of ' + this.type.toUpperCase() + '.')
+      console.warn('No validator could be create for %c' + property + '%c. It is not an attribute of %c' + this.type + '%c.', NGN.css, '', NGN.css, '')
       return
     }
 
@@ -567,7 +567,7 @@ class Model extends NGN.EventEmitter {
           })
           this.emit('validator.add', property)
         } else {
-          console.warn('No validator could be created for ' + property.toUpperCase() + '. The validator appears to be invalid.')
+          console.warn('No validator could be created for %c' + property + '%c. The validator appears to be invalid.', NGN.css, '')
         }
         break
       case 'string':
@@ -580,7 +580,7 @@ class Model extends NGN.EventEmitter {
         this.emit('validator.add', property)
         break
       default:
-        console.warn('No validator could be create for ' + property.toUpperCase() + '. The validator appears to be invalid.')
+        console.warn('No validator could be create for %c' + property + '%c. The validator appears to be invalid.', NGN.css, '')
     }
   }
 
@@ -819,7 +819,8 @@ class Model extends NGN.EventEmitter {
       }
 
       if (me[field] !== undefined) {
-        console.warn(field + ' data field defined multiple times. Only the last defintion will be used.')
+        const source = NGN.stack.pop()
+        console.warn('%c' + field + '%c data field defined multiple times (at %c' + source.path + '%c). Only the last defintion will be used.', NGN.css, '', NGN.css, '')
         delete me[field]
       }
 
@@ -893,7 +894,8 @@ class Model extends NGN.EventEmitter {
               return me.fields[field](val)
             })
           } else {
-            console.warn('Invalid custom validation function. The value passed to the validate attribute must be a function.')
+            const source = NGN.stack.pop()
+            console.warn('Invalid custom validation function (in %c' + source.path + '%c). The value passed to the validate attribute must be a function.', NGN.css, '')
           }
         }
       }
@@ -963,17 +965,19 @@ class Model extends NGN.EventEmitter {
 
     if (entityType === 'store') {
       let storeCfg = {}
-
+console.log('Recognized Store as', name)
       if (cfg.type instanceof NGN.DATA.Store) {
         this.rawjoins[name] = cfg.type
-        return
+        storeCfg = null
       } else if (cfg.type.model) {
         storeCfg = cfg.type
       } else {
         throw new Error('Nested store configuration is invalid or was not recognized.')
       }
 
-      this.rawjoins[name] = new NGN.DATA.Store(storeCfg)
+      if (storeCfg !== null) {
+        this.rawjoins[name] = new NGN.DATA.Store(storeCfg)
+      }
       this.applyStoreMonitor(name)
     } else if (!cfg.type.data) {
       this.rawjoins[name] = cfg.default !== null ? new cfg.type(cfg.default) : new cfg.type()  // eslint-disable-line new-cap
@@ -1238,7 +1242,8 @@ class Model extends NGN.EventEmitter {
         // me.rawjoin[key] = tmp
         me.rawjoins[key].load(data[key])
       } else {
-        console.warn(key + ' was specified as a data field but is not defined in the model.')
+        const source = NGN.stack.pop()
+        console.warn('%c' + key + '%c specified in %c' + source.path + '%c as a data field but is not defined in the model.', NGN.css, '', NGN.css, '')
       }
     })
 

@@ -809,7 +809,7 @@ class Store extends NGN.EventEmitter {
    */
   createIndex (field, suppressEvents) {
     if (!this.model.hasOwnProperty(field)) {
-      console.warn("The store's model does not contain a data field called " + field + '.')
+      console.warn('The store\'s model does not contain a data field called %c' + field + '%c.', NGN.css, '')
     }
 
     let exists = this._index.hasOwnProperty(field)

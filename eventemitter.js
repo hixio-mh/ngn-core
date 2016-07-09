@@ -35,7 +35,7 @@ NGN.inherit(Object.defineProperties({}, {
       if (typeof group[eventName] === 'function') {
         pool[eventName] = this.on(topic, group[eventName])
       } else {
-        console.warn(topic + ' could not be pooled in the event emitter because it\'s value is not a function.')
+        console.warn('%c' + topic + '%c could not be pooled in the event emitter because it\'s value is not a function.', NGN.css, '')
       }
     }
     if (callback) {

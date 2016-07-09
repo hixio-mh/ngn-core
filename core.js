@@ -380,5 +380,63 @@ Object.defineProperties(NGN, {
       value = el.name || 'function'
     }
     return value.toLowerCase()
-  })
+  }),
+
+  /**
+   * @method stack
+   * Retrieve the stack trace from a specific code location without throwing
+   * an exception.
+   * @private
+   * @returns {array}
+   * Returns an array of objects. Each object contains the file, line, column,
+   * and path within the stack. For example:
+   *
+   * ```
+   * {
+   * 	 path: 'path/to/file.js:127:14'
+   *   file: 'path/to/file.js',
+   *   line: 127,
+   *   column: 14
+   * }
+   * ```
+   */
+  stack: NGN.get(function () {
+    const me = this
+
+    let stack = (new Error).stack.split('\n') || []
+
+    stack = stack.filter(function (item) {
+      return item.split(':').length > 1
+    }).map(function (item) {
+      item = item
+        .replace(/^.*\s\(/i, '')
+        .replace(/\)/gi, '')
+        .replace(/^.*\@/i, '')
+        .replace((me.nodelike ? process.cwd() : window.location.origin), '')
+        .replace(/\s{1,100}at\s{1,100}/gi, '')
+        .trim().split(':')
+
+      return {
+        path: item[0].substr(1, item[0].length - 1) + ':' + item[1] + ':' + item[2],
+        file: item[0].substr(1, item[0].length - 1),
+        line: parseInt(item[1], 10),
+        column: parseInt(item[2], 10)
+      }
+    })
+
+    return stack
+  }),
+
+  /**
+   * @property css
+   * A CSS string used for highlighting console output in Chrome and Firefox.
+   *
+   * **Example:**
+   *
+   * ```js
+   * console.log('%cHighlight %c some text and leave the rest normal.', NGN.css, '')
+   * ```
+   * @private
+   */
+  css: NGN.privateconst('font-family: bold;')
 })
