@@ -961,11 +961,7 @@ class Model extends NGN.EventEmitter {
       if (cfg.type.length === 0) {
         throw new Error(name + ' cannot be an empty store. A model must be provided.')
       }
-      if (NGN.typeof(cfg.type[0]) === 'modelloader') {
-        entityType = 'collection'
-      } else {
-        throw new Error(name + ' does not specify a valid store.')
-      }
+      entityType = 'collection'
     } else if (typeof cfg.type === 'object') {
       if (cfg.type.model) {
         entityType = 'store'
