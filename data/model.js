@@ -1030,7 +1030,7 @@ class Model extends NGN.EventEmitter {
     const model = this.rawjoins[name]
     const me = this
 
-    model.on('field.update', function (r, delta) {
+    model.on('field.update', function (delta) {
       me.emit('field.update', {
         action: 'update',
         field: name + '.' + delta.field,
@@ -1040,7 +1040,7 @@ class Model extends NGN.EventEmitter {
       })
     })
 
-    model.on('field.create', function (r, delta) {
+    model.on('field.create', function (delta) {
       me.emit('field.update', {
         action: 'update',
         field: name + '.' + delta.field,
@@ -1050,7 +1050,7 @@ class Model extends NGN.EventEmitter {
       })
     })
 
-    model.on('field.remove', function (r, delta) {
+    model.on('field.remove', function (delta) {
       me.emit('field.update', {
         action: 'update',
         field: name + '.' + delta.field,
