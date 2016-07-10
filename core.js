@@ -418,10 +418,6 @@ Object.defineProperties(NGN, {
         .replace(/anonymous\>/, 'console')
         .trim().split(':')
 
-      if (NGN.nodelike) {
-        item.replace(__dirname, '')
-      }
-
       return {
         path: item[0].substr(1, item[0].length - 1) + ':' + item[1] + ':' + item[2],
         file: item[0].substr(1, item[0].length - 1),
