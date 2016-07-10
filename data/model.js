@@ -957,6 +957,15 @@ class Model extends NGN.EventEmitter {
     let entityType = 'model'
     if (cfg.type instanceof NGN.DATA.Store) {
       entityType = 'store'
+    } else if (NGN.typeof(cfg.type) === 'array') {
+      if (cfg.type.length === 0) {
+        throw new Error(name + ' cannot be an empty store. A model must be provided.')
+      }
+      if (NGN.typeof(cfg.type[0]) === 'modelloader') {
+        entityType = 'collection'
+      } else {
+        throw new Error(name + ' does not specify a valid store.')
+      }
     } else if (typeof cfg.type === 'object') {
       if (cfg.type.model) {
         entityType = 'store'
@@ -977,6 +986,11 @@ class Model extends NGN.EventEmitter {
       if (storeCfg !== null) {
         this.rawjoins[name] = new NGN.DATA.Store(storeCfg)
       }
+      this.applyStoreMonitor(name)
+    } else if (entityType === 'collection') {
+      this.rawjoins[name] = new NGN.DATA.Store({
+        model: cfg.type[0]
+      })
       this.applyStoreMonitor(name)
     } else if (!cfg.type.data) {
       this.rawjoins[name] = cfg.default !== null ? new cfg.type(cfg.default) : new cfg.type()  // eslint-disable-line new-cap
@@ -1014,9 +1028,9 @@ class Model extends NGN.EventEmitter {
    */
   applyModelMonitor (name) {
     const model = this.rawjoins[name]
-    let me = this
+    const me = this
 
-    model.on('field.update', function (delta) {
+    model.on('field.update', function (r, delta) {
       me.emit('field.update', {
         action: 'update',
         field: name + '.' + delta.field,
@@ -1026,7 +1040,7 @@ class Model extends NGN.EventEmitter {
       })
     })
 
-    model.on('field.create', function (delta) {
+    model.on('field.create', function (r, delta) {
       me.emit('field.update', {
         action: 'update',
         field: name + '.' + delta.field,
@@ -1036,7 +1050,7 @@ class Model extends NGN.EventEmitter {
       })
     })
 
-    model.on('field.remove', function (delta) {
+    model.on('field.remove', function (r, delta) {
       me.emit('field.update', {
         action: 'update',
         field: name + '.' + delta.field,
@@ -1059,7 +1073,8 @@ class Model extends NGN.EventEmitter {
       return
     }
     if (this.rawjoins[name].hasOwnProperty('proxy')) {
-      let me = this
+      const me = this
+
       this.rawjoins[name].on('record.create', function (record) {
         let old = me[name].data
         old.pop()

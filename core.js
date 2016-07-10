@@ -413,8 +413,14 @@ Object.defineProperties(NGN, {
         .replace(/\)/gi, '')
         .replace(/^.*\@/i, '')
         .replace((me.nodelike ? process.cwd() : window.location.origin), '')
+        .replace(/^.*\:\/\//, '')
         .replace(/\s{1,100}at\s{1,100}/gi, '')
+        .replace(/anonymous\>/, 'console')
         .trim().split(':')
+
+      if (NGN.nodelike) {
+        item.replace(__dirname, '')
+      }
 
       return {
         path: item[0].substr(1, item[0].length - 1) + ':' + item[1] + ':' + item[2],
