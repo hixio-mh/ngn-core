@@ -440,5 +440,5 @@ Object.defineProperties(NGN, {
    * ```
    * @private
    */
-  css: NGN.privateconst('font-family: bold;')
+  css: NGN.privateconst('font-weight: bold;')
 })
