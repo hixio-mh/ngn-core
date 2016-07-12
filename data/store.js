@@ -760,8 +760,7 @@ class Store extends NGN.EventEmitter {
       this.records.sort(fn)
     } else if (typeof fn === 'object') {
       let functionKeys = Object.keys(fn)
-
-      this.records.sort(function (a, b) {
+      this._data.sort(function (a, b) {
         for (let i = 0; i < functionKeys.length; i++) {
           // Make sure both objects have the same sorting key
           if (a.hasOwnProperty(functionKeys[i]) && !b.hasOwnProperty(functionKeys[i])) {
@@ -776,6 +775,9 @@ class Store extends NGN.EventEmitter {
           if (a[functionKeys[i]] !== b[functionKeys[i]]) {
             switch (fn[functionKeys[i]].toString().trim().toLowerCase()) {
               case 'asc':
+                if (typeof a.fields[functionKeys[i]]) {
+                  return a[functionKeys[i]].localeCompare(b[functionKeys[i]])
+                }
                 return a[functionKeys[i]] > b[functionKeys[i]] ? 1 : -1
               case 'desc':
                 return a[functionKeys[i]] < b[functionKeys[i]] ? 1 : -1
@@ -792,7 +794,6 @@ class Store extends NGN.EventEmitter {
         return 0
       })
     }
-
     this.reindex()
   }
 
