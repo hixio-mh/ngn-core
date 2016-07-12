@@ -20,7 +20,7 @@ class Model extends NGN.EventEmitter {
 
     super()
 
-    let me = this
+    const me = this
 
     Object.defineProperties(this, {
       /**
@@ -211,33 +211,33 @@ class Model extends NGN.EventEmitter {
       changelog: NGN.private([]),
 
       _nativeValidators: NGN.privateconst({
-        min: function (min, value) {
+        min: function (minimum, value) {
           if (NGN.typeof(value) === 'array') {
-            return value.length >= min
+            return value.length >= minimum
           }
           if (NGN.typeof(value) === 'number') {
-            return value >= min
+            return value >= minimum
           }
           if (NGN.typeof(value) === 'string') {
-            return value.trim().length >= min
+            return value.trim().length >= minimum
           }
           if (NGN.typeof(value) === 'date') {
-            return value.parse() >= min.parse()
+            return value.parse() >= minimum.parse()
           }
           return false
         },
-        max: function (max, value) {
+        max: function (maximum, value) {
           if (NGN.typeof(value) === 'array') {
-            return value.length <= max
+            return value.length <= maximum
           }
           if (NGN.typeof(value) === 'number') {
-            return value <= max
+            return value <= maximum
           }
           if (NGN.typeof(value) === 'string') {
-            return value.trim().length <= max
+            return value.trim().length <= maximum
           }
           if (NGN.typeof(value) === 'date') {
-            return value.parse() <= max.parse()
+            return value.parse() <= maximum.parse()
           }
           return false
         },
@@ -472,7 +472,7 @@ class Model extends NGN.EventEmitter {
         return this._reverseDataMap
       }
       let rmap = {}
-      let me = this
+      const me = this
       Object.keys(this._dataMap).forEach(function (attr) {
         rmap[me._dataMap[attr]] = attr
       })
@@ -494,7 +494,7 @@ class Model extends NGN.EventEmitter {
       d[this.idAttribute] = this[this.idAttribute]
     }
     if (this.dataMap) {
-      let me = this
+      const me = this
       // Loop through the map keys
       Object.keys(this.dataMap).forEach(function (key) {
         // If the node contains key, make the mapping
@@ -608,10 +608,7 @@ class Model extends NGN.EventEmitter {
     * Returns true or false based on the validity of data.
     */
   validate (attribute) {
-    let _pass = true
-    let me = this
-
-    this.invalidDataAttributes = []
+    const me = this
 
     // Single Attribute Validation
     if (attribute) {
@@ -620,44 +617,26 @@ class Model extends NGN.EventEmitter {
           if (!me.validators[attribute][i](me[attribute])) {
             me.invalidDataAttributes.indexOf(attribute) < 0 && me.invalidDataAttributes.push(attribute)
             return false
+          } else {
+            me.invalidDataAttributes = me.invalidDataAttributes.filter(function (attr) {
+              return attribute !== attr
+            })
           }
         }
+
         if (!this.validateDataType(attribute)) {
           this.invalidDataAttributes.push(attribute)
-        }
-        return
-      }
-    }
-
-    // Validate All Attributes
-    for (let rule in this.validators) {
-      if (this[rule]) {
-        if (this.validators.hasOwnProperty(rule)) {
-          let pass = true
-          for (let i = 0; i < this.validators[rule].length; i++) {
-            pass = this.validators[rule][i](this[rule])
-            if (!pass) {
-              break
-            }
-          }
-          if (!pass && this.invalidDataAttributes.indexOf(rule) < 0) {
-            this.invalidDataAttributes.push(rule)
-          }
-
-          if (_pass && !pass) {
-            _pass = false
-          }
+          return false
         }
       }
+
+      return true
     }
 
+    // Validate data type of each attribute
     this.datafields.forEach(function (field) {
-      if (!me.validateDataType(field) && me.raw.hasOwnProperty(field)) {
-        me.invalidDataAttributes.push(field)
-      }
+      me.validate(field)
     })
-
-    return
   }
 
   /**
@@ -782,7 +761,7 @@ class Model extends NGN.EventEmitter {
       }
     }
 
-    let me = this
+    const me = this
     this.relationships.forEach(function (r) {
       rtn[r] = me.rawjoins[r].data
     })
@@ -806,7 +785,7 @@ class Model extends NGN.EventEmitter {
       fieldcfg = null
     }
     suppressEvents = suppressEvents !== undefined ? suppressEvents : false
-    let me = this
+    const me = this
     let cfg = null
     if (field.toLowerCase() !== 'id') {
       if (typeof field === 'object') {
@@ -827,6 +806,14 @@ class Model extends NGN.EventEmitter {
       // Create the data field as an object attribute & getter/setter
       me.fields[field] = cfg || me.fields[field] || {}
       me.fields[field].required = NGN.coalesce(me.fields[field].required, false)
+
+      if (!me.fields[field].hasOwnProperty('type')) {
+        if (me.fields[field].hasOwnProperty('default')) {
+          let type = NGN.typeof(me.fields[field].default)
+          type = type.charAt(0).toUpperCase() + type.slice(1)
+          me.fields[field].type = eval(type)
+        }
+      }
       me.fields[field].type = NGN.coalesce(me.fields[field].type, String)
       if (field === me.idAttribute && me.autoid === true) {
         me.fields[field].type = String
@@ -877,7 +864,7 @@ class Model extends NGN.EventEmitter {
         ['min', 'max', 'enum'].forEach(function (v) {
           if (me.fields[field].hasOwnProperty(v)) {
             me.addValidator(field, function (val) {
-              return me._nativeValidators[v](me.fields[field], val)
+              return me._nativeValidators[v](me.fields[field][v], val)
             })
           }
         })
@@ -914,7 +901,7 @@ class Model extends NGN.EventEmitter {
    * the desired output.
    */
   addVirtual (name, fn) {
-    let me = this
+    const me = this
     Object.defineProperty(this, name, {
       get: function () {
         return fn.apply(me)
@@ -953,7 +940,7 @@ class Model extends NGN.EventEmitter {
     cfg.required = NGN.coalesce(cfg.required, true)
     cfg.default = cfg.default || null
 
-    let me = this
+    const me = this
     let entityType = 'model'
     if (cfg.type instanceof NGN.DATA.Store) {
       entityType = 'store'
@@ -1187,7 +1174,7 @@ class Model extends NGN.EventEmitter {
   undo (back) {
     back = back || 1
     let old = this.changelog.splice(this.changelog.length - back, back)
-    let me = this
+    const me = this
 
     old.reverse().forEach(function (change) {
       if (!(typeof change.join === 'boolean' ? change.join : false)) {
@@ -1228,7 +1215,7 @@ class Model extends NGN.EventEmitter {
     data = data || {}
 
     // Handle data maps
-    let me = this
+    const me = this
     if (this._dataMap !== null) {
       Object.keys(this.reverseMap).forEach(function (key) {
         if (data.hasOwnProperty(key)) {
