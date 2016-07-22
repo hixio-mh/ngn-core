@@ -798,8 +798,12 @@ class Model extends NGN.EventEmitter {
       }
 
       if (me[field] !== undefined) {
-        const source = NGN.stack.pop()
-        console.warn('%c' + field + '%c data field defined multiple times (at %c' + source.path + '%c). Only the last defintion will be used.', NGN.css, '', NGN.css, '')
+        try {
+          const source = NGN.stack.pop()
+          console.warn('%c' + field + '%c data field defined multiple times (at %c' + source.path + '%c). Only the last defintion will be used.', NGN.css, '', NGN.css, '')
+        } catch (e) {
+          console.warn('%c' + field + '%c data field defined multiple times. Only the last definition will be used.', NGN.css, '', NGN.css, '')
+        }
         delete me[field]
       }
 
