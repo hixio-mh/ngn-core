@@ -1243,8 +1243,12 @@ class Model extends NGN.EventEmitter {
         // me.rawjoin[key] = tmp
         me.rawjoins[key].load(data[key])
       } else {
-        const source = NGN.stack.pop()
-        console.warn('%c' + key + '%c specified in %c' + source.path + '%c as a data field but is not defined in the model.', NGN.css, '', NGN.css, '')
+        try {
+          const source = NGN.stack.pop()
+          console.warn('%c' + key + '%c specified in %c' + source.path + '%c as a data field but is not defined in the model.', NGN.css, '', NGN.css, '')
+        } catch (e) {
+          console.warn('%c' + key + '%c specified as a data field but is not defined in the model.', NGN.css, '')
+        }
       }
     })
 

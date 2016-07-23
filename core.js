@@ -389,7 +389,36 @@ Object.defineProperties(NGN, {
   /**
    * @method stack
    * Retrieve the stack trace from a specific code location without throwing
-   * an exception.
+   * an exception. Files are always listed from the root. This is the default
+   * order in browsers, but the reverse of the normal stack order in node-like
+   * environments.
+   *
+   * For example, the following stack on node shows `_test.js` as the last item
+   * in the array. In node-like environments, the `_test.js` would normally be
+   * the first item in the stacktrace.
+   *
+   * ```js
+   * [
+   *   { path: 'node.js:348:7', file: 'node.js', line: 348, column: 7 },
+   *   { path: 'module.js:575:10',
+   *     file: 'module.js',
+   *     line: 575,
+   *     column: 10 },
+   *   { path: 'module.js:550:10',
+   *     file: 'module.js',
+   *     line: 550,
+   *     column: 10 },
+   *   { path: 'module.js:541:32',
+   *     file: 'module.js',
+   *     line: 541,
+   *     column: 32 },
+   *   { path: '/_test.js:8:14', file: '/_test.js', line: 8, column: 14 }
+   * ]
+   * ```
+   *
+   * By standardizing the order of the stack trace, it is easier to programmatically
+   * identify sources of problems. This method does not prevent developers from
+   * accessing a normal stacktrace.
    * @private
    * @returns {array}
    * Returns an array of objects. Each object contains the file, line, column,
@@ -403,10 +432,22 @@ Object.defineProperties(NGN, {
    *   column: 14
    * }
    * ```
+   *
+   * If a stacktrace is unavailable for any reason, the array will contain a
+   * single element like:
+   *
+   * ```js
+   * {
+   *   path: 'unknown',
+   *   file: 'unknown',
+   *   line: 0,
+   *   column: 0
+   * }
+   * ```
    */
   stack: NGN.get(function () {
     const me = this
-
+    const originalStack =  (new Error).stack.split('\n')
     let stack = (new Error).stack.split('\n') || []
 
     stack = stack.filter(function (item) {
@@ -423,12 +464,23 @@ Object.defineProperties(NGN, {
         .trim().split(':')
 
       return {
-        path: item[0].substr(1, item[0].length - 1) + ':' + item[1] + ':' + item[2],
-        file: item[0].substr(1, item[0].length - 1),
+        path: item[0].substr(me.nodelike ? 0 : 1, item[0].length - (me.nodelike ? 0 : 1)) + ':' + item[1] + ':' + item[2],
+        file: item[0].substr(me.nodelike ? 0 : 1, item[0].length - (me.nodelike ? 0 : 1)),
         line: parseInt(item[1], 10),
         column: parseInt(item[2], 10)
       }
     })
+
+    if (stack.length === 0) {
+      return [{
+        path: 'unknown',
+        file: 'unknown',
+        line: 0,
+        column: 0
+      }]
+    } else if (me.nodelike) {
+      stack.reverse()
+    }
 
     return stack
   }),
