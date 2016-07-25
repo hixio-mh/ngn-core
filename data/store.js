@@ -60,16 +60,23 @@ class Store extends NGN.EventEmitter {
        * If this is not set, it will default to the value of #allowDuplicates.
        * If #allowDuplicates is not defined either, this will be `true`
        */
-      errorOnDuplicate: NGN.const(NGN.coalesce(cfg.errorOnDuplicate, cfg.allowDuplicates, true))
+      errorOnDuplicate: NGN.const(NGN.coalesce(cfg.errorOnDuplicate, cfg.allowDuplicates, true)),
+
+      /**
+       * @cfgproperty {boolean} [autoRemoveExpiredRecords=true]
+       * When set to `true`, the store will automatically delete expired records.
+       */
+      autoRemoveExpiredRecords: NGN.privateconst(NGN.coalesce(cfg.autoRemoveExpiredRecords, true))
     })
 
     let obj = {}
-    this._index.forEach(function (i) {
+    this._index.forEach(i => {
       obj[i] = []
     })
+
     this._index = obj
 
-    let events = [
+    const events = [
       'record.duplicate',
       'record.create',
       'record.update',
@@ -82,12 +89,11 @@ class Store extends NGN.EventEmitter {
     ]
 
     if (NGN.BUS) {
-      const me = this
-      events.forEach(function (eventName) {
-        me.on(eventName, function () {
+      events.forEach(eventName => {
+        this.on(eventName, function () {
           let args = NGN.slice(arguments)
           args.shift()
-          args.push(me)
+          args.push(this)
           NGN.BUS.emit(eventName, args)
         })
       })
@@ -179,7 +185,6 @@ class Store extends NGN.EventEmitter {
    */
   add (data, suppressEvent) {
     let record
-    const me = this
 
     if (!(data instanceof NGN.DATA.Entity)) {
       try { data = JSON.parse(data) } catch (e) {}
@@ -196,7 +201,7 @@ class Store extends NGN.EventEmitter {
     }
 
     if (record.hasOwnProperty('_store')) {
-      record._store = me
+      record._store = this
     }
 
     let dupe = this.isDuplicate(record)
@@ -248,14 +253,22 @@ class Store extends NGN.EventEmitter {
    * @private
    */
   listen (record) {
-    const me = this
-    record.on('field.update', function (delta) {
-      me.updateIndice(delta.field, delta.old, delta.new, me._data.indexOf(record))
-      me.emit('record.update', record, delta)
+    record.on('field.update', delta => {
+      this.updateIndice(delta.field, delta.old, delta.new, this._data.indexOf(record))
+      this.emit('record.update', record, delta)
     })
-    record.on('field.delete', function (delta) {
-      me.updateIndice(delta.field, delta.old, undefined, me._data.indexOf(record))
-      me.emit('record.update', record, delta)
+
+    record.on('field.delete', delta => {
+      this.updateIndice(delta.field, delta.old, undefined, this._data.indexOf(record))
+      this.emit('record.update', record, delta)
+    })
+
+    record.on('expired', () => {
+      this.emit('record.expired', record)
+
+      if (this.autoRemoveExpiredRecords) {
+        this.remove(record)
+      }
     })
   }
 
@@ -268,13 +281,15 @@ class Store extends NGN.EventEmitter {
    */
   bulk (event, data) {
     this._loading = true
-    const me = this
-    data.forEach(function (record) {
-      me.add(record, true)
+
+    data.forEach(record => {
+      this.add(record, true)
     })
+
     this._loading = false
     this._deleted = []
     this._created = []
+
     this.emit(event || 'load')
   }
 
@@ -401,10 +416,11 @@ class Store extends NGN.EventEmitter {
    */
   clear () {
     this._data = []
-    const me = this
-    Object.keys(this._index).forEach(function (index) {
-      me._index[index] = []
+
+    Object.keys(this._index).forEach(index => {
+      this._index[index] = []
     })
+
     this.emit('clear')
   }
 
@@ -465,7 +481,6 @@ class Store extends NGN.EventEmitter {
     }
 
     let resultSet = []
-    const me = this
 
     switch (typeof query) {
       case 'function':
@@ -477,8 +492,8 @@ class Store extends NGN.EventEmitter {
       case 'string':
         let indice = this.getIndices(this._data[0].idAttribute, query.trim())
         if (indice !== null && indice.length > 0) {
-          indice.forEach(function (index) {
-            resultSet.push(me._data[index])
+          indice.forEach(index => {
+            resultSet.push(this._data[index])
           })
           return resultSet
         }
@@ -495,6 +510,7 @@ class Store extends NGN.EventEmitter {
           if (this.contains(query)) {
             return query
           }
+
           return null
         }
 
@@ -502,8 +518,9 @@ class Store extends NGN.EventEmitter {
         let noindex = []
         let queryKeys = Object.keys(query)
 
-        queryKeys.forEach(function (field) {
-          let index = me.getIndices(field, query[field])
+        queryKeys.forEach(field => {
+          let index = this.getIndices(field, query[field])
+
           if (index) {
             match = match.concat(index || [])
           } else {
@@ -522,24 +539,27 @@ class Store extends NGN.EventEmitter {
             if (match.indexOf(i) >= 0) {
               return false
             }
+
             for (let x = 0; x < noindex.length; x++) {
               if (record[noindex[x]] !== query[noindex[x]]) {
                 return false
               }
             }
+
             return true
           })
         }
 
         // If a combined indexable + nonindexable query
-        resultSet = resultSet.concat(match.map(function (index) {
-          return me._data[index]
+        resultSet = resultSet.concat(match.map(index => {
+          return this._data[index]
         })).filter(function (record) {
           for (let y = 0; y < queryKeys.length; y++) {
             if (query[queryKeys[y]] !== record[queryKeys[y]]) {
               return false
             }
           }
+
           return true
         })
         break
@@ -635,9 +655,8 @@ class Store extends NGN.EventEmitter {
       return
     }
 
-    const me = this
     while (this._filters.length > 0) {
-      me.emit('filter.delete', this._filters.pop())
+      this.emit('filter.delete', this._filters.pop())
     }
   }
 
@@ -657,16 +676,15 @@ class Store extends NGN.EventEmitter {
     })
 
     let dupes = []
-    const me = this
 
-    records.forEach(function (record, i) {
+    records.forEach((record, i) => {
       if (records.indexOf(record) < i) {
-        dupes.push(me.find(i))
+        dupes.push(this.find(i))
       }
     })
 
-    dupes.forEach(function (duplicate) {
-      me.remove(duplicate)
+    dupes.forEach(duplicate => {
+      this.remove(duplicate)
     })
   }
 
@@ -760,6 +778,7 @@ class Store extends NGN.EventEmitter {
       this.records.sort(fn)
     } else if (typeof fn === 'object') {
       let functionKeys = Object.keys(fn)
+
       this._data.sort(function (a, b) {
         for (let i = 0; i < functionKeys.length; i++) {
           // Make sure both objects have the same sorting key
@@ -779,8 +798,10 @@ class Store extends NGN.EventEmitter {
                   return a[functionKeys[i]].localeCompare(b[functionKeys[i]])
                 }
                 return a[functionKeys[i]] > b[functionKeys[i]] ? 1 : -1
+
               case 'desc':
                 return a[functionKeys[i]] < b[functionKeys[i]] ? 1 : -1
+
               default:
                 if (typeof fn[functionKeys[i]] === 'function') {
                   return fn[functionKeys[i]](a, b)
@@ -838,6 +859,7 @@ class Store extends NGN.EventEmitter {
   deleteIndex (field, suppressEvents) {
     if (this._index.hasOwnProperty(field)) {
       delete this._index[field]
+
       if (!NGN.coalesce(suppressEvents, false)) {
         this.emit('index.created', {
           field: field,
@@ -852,10 +874,8 @@ class Store extends NGN.EventEmitter {
    * Clear all indices from the indexes.
    */
   clearIndices () {
-    const me = this
-
-    Object.keys(this._index).forEach(function (key) {
-      me._index[key] = []
+    Object.keys(this._index).forEach(key => {
+      this._index[key] = []
     })
   }
 
@@ -868,10 +888,8 @@ class Store extends NGN.EventEmitter {
   deleteIndexes (suppressEvents) {
     suppressEvents = NGN.coalesce(suppressEvents, true)
 
-    const me = this
-
-    Object.keys(this._index).forEach(function (key) {
-      me.deleteIndex(key, suppressEvents)
+    Object.keys(this._index).forEach(key => {
+      this.deleteIndex(key, suppressEvents)
     })
   }
 
@@ -891,22 +909,20 @@ class Store extends NGN.EventEmitter {
       return
     }
 
-    const me = this
-
-    indexes.forEach(function (field) {
+    indexes.forEach(field => {
       if (record.hasOwnProperty(field)) {
-        let values = me._index[field]
+        let values = this._index[field]
 
         // Check existing records for similar values
         for (let i = 0; i < values.length; i++) {
           if (values[i][0] === record[field]) {
-            me._index[field][i].push(number)
+            this._index[field][i].push(number)
             return
           }
         }
 
         // No matching words, create a new one.
-        me._index[field].push([record[field], number])
+        this._index[field].push([record[field], number])
       }
     })
   }
@@ -920,12 +936,10 @@ class Store extends NGN.EventEmitter {
    * @private
    */
   unapplyIndices (num) {
-    const me = this
-
-    Object.keys(this._index).forEach(function (field) {
-      let i = me._index[field].indexOf(num)
+    Object.keys(this._index).forEach(field => {
+      const i = this._index[field].indexOf(num)
       if (i >= 0) {
-        me._index[field].splice(i, 1)
+        this._index[field].splice(i, 1)
       }
     })
   }
@@ -949,23 +963,22 @@ class Store extends NGN.EventEmitter {
     }
 
     let ct = 0
-    const me = this
 
-    for (let i = 0; i < me._index[field].length; i++) {
-      let value = me._index[field][i][0]
+    for (let i = 0; i < this._index[field].length; i++) {
+      let value = this._index[field][i][0]
 
       if (value === oldValue) {
-        me._index[field][i].splice(me._index[field][i].indexOf(num), 1)
+        this._index[field][i].splice(this._index[field][i].indexOf(num), 1)
         ct++
       } else if (newValue === undefined) {
         // If thr new value is undefined, the field was removed for the record.
         // This can be skipped.
         ct++
       } else if (value === newValue) {
-        me._index[field][i].push(num)
-        me._index[field][i].shift()
-        me._index[field][i].sort()
-        me._index[field][i].unshift(value)
+        this._index[field][i].push(num)
+        this._index[field][i].shift()
+        this._index[field][i].sort()
+        this._index[field][i].unshift(value)
         ct++
       }
 
@@ -1011,9 +1024,8 @@ class Store extends NGN.EventEmitter {
    */
   reindex () {
     this.clearIndices()
-    const me = this
-    this._data.forEach(function (record, index) {
-      me.applyIndices(record, index)
+    this._data.forEach((record, index) => {
+      this.applyIndices(record, index)
     })
   }
 }

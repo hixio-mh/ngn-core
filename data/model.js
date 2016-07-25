@@ -171,6 +171,35 @@ class Model extends NGN.EventEmitter {
       benchmark: NGN.private(null),
 
       /**
+       * @cfgproperty {Date|Number} [expires]
+       * When this is set to a date/time, the model record will be marked
+       * as expired at the specified time/date. If a number is specified
+       * (milliseconds), the record will be marked as expired after the
+       * specified time period has elapsed. When a record/model is marked as
+       * "expired", it triggers the `expired` event. By default, expired
+       * records/models within an NGN.DATA.Store will be removed from the store.
+       *
+       * Setting this to any value less than `0` disables expiration.
+       * @fires expired
+       * Triggered when the model/record expires.
+       */
+      expiration: NGN.private(null),
+
+      // Used to hold a setTimeout method for expiration events.
+      expirationTimeout: NGN.private(null),
+
+      // Used to prevent expiration of a record.
+      ignoreTTL: NGN.private(false),
+
+      /**
+       * @property {Number} created
+       * The date/time when the model is created. This is represented as
+       * the number of milliseconds since the epoch (Jan 1, 1970, 00:00:00 UTC).
+       * @private
+       */
+      createDate: NGN.privateconst(Date.now()),
+
+      /**
        * @method setUnmodified
        * This method forces the model to be viewed as unmodified, as though
        * the record was just loaded from it's source. This method should only
@@ -215,35 +244,46 @@ class Model extends NGN.EventEmitter {
           if (NGN.typeof(value) === 'array') {
             return value.length >= minimum
           }
+
           if (NGN.typeof(value) === 'number') {
             return value >= minimum
           }
+
           if (NGN.typeof(value) === 'string') {
             return value.trim().length >= minimum
           }
+
           if (NGN.typeof(value) === 'date') {
             return value.parse() >= minimum.parse()
           }
+
           return false
         },
+
         max: function (maximum, value) {
           if (NGN.typeof(value) === 'array') {
             return value.length <= maximum
           }
+
           if (NGN.typeof(value) === 'number') {
             return value <= maximum
           }
+
           if (NGN.typeof(value) === 'string') {
             return value.trim().length <= maximum
           }
+
           if (NGN.typeof(value) === 'date') {
             return value.parse() <= maximum.parse()
           }
+
           return false
         },
+
         enum: function (valid, value) {
           return valid.indexOf(value) >= 0
         },
+
         required: function (field, value) {
           return me.hasOwnProperty(field) && me[value] !== null
         }
@@ -339,7 +379,8 @@ class Model extends NGN.EventEmitter {
       'validator.add',
       'validator.remove',
       'relationship.create',
-      'relationship.remove'
+      'relationship.remove',
+      'expired'
     ]
 
     if (NGN.BUS) {
@@ -352,6 +393,81 @@ class Model extends NGN.EventEmitter {
         })
       })
     }
+
+    // If an expiration is defined, set it.
+    if (config.hasOwnProperty('expires')) {
+      this.expires = config.expires
+    }
+  }
+
+  get expires () {
+    return this.expiration
+  }
+
+  set expires (value) {
+    // Validate data type
+    if (NGN.typeof(value) !== 'date' && NGN.typeof(value) !== 'number') {
+      try {
+        const source = NGN.stack.pop()
+        console.warn('Expiration could not be set at %c' + source.path + '%c (Invalid data type. Must be a Date or number).', NGN.css, '')
+      } catch (e) {
+        console.warn('Expiration could not be set (Invalid data type. Must be a Date or number).')
+      }
+
+      return
+    }
+
+    // Clear existing expiration timer if it is already set.
+    clearTimeout(this.expirationTimeout)
+
+    // If the new value is a number, convert to a date.
+    if (NGN.typeof(value) === 'number') {
+      if (value < 0) {
+        this.ignoreTTL = true
+        return
+      }
+
+      const currentDate = new Date()
+
+      value = new Date (
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        currentDate.getDate(),
+        currentDate.getHours(),
+        currentDate.getMinutes(),
+        currentDate.getSeconds(),
+        currentDate.getMilliseconds() + value
+      )
+    }
+
+    // If the process has reached this far, expiration
+    // actions should be enabled.
+    if (this.ignoreTTL) {
+      this.ignoreTTL = false
+    }
+
+    // Set the new expiration time period
+    this.expiration = value
+
+    // If the record is already expired, immediately trigger the expiration.
+    if (this.expired) {
+      this.expire()
+      return
+    }
+
+    // If the expiration is in the future, set a timer to expire.
+    let waitPeriod = this.expiration.getTime() - Date.now()
+    this.expirationTimeout = setTimeout(() => {
+      this.expire()
+    }, waitPeriod)
+  }
+
+  /**
+   * @property {boolean} expired
+   * Indicates the record/model is expired.
+   */
+  get expired () {
+    return Date.now() >= this.expires.getTime()
   }
 
   /**
@@ -521,6 +637,42 @@ class Model extends NGN.EventEmitter {
    */
   get history () {
     return this.changelog.reverse()
+  }
+
+  /**
+   * @method expire
+   * Forcibly expire the model/record.
+   * @param {Date|Number} [duration]
+   * Optionally provide a new expiration time. This is an alternative
+   * way of setting #expires. If no value is specified, the record
+   * will immediately be marked as `expired`.
+   */
+  expire (duration) {
+    if (duration) {
+      this.expires = duration
+      return
+    }
+
+    if (this.ignoreTTL) {
+      return
+    }
+
+    // Force expiration.
+    if (!this.expired) {
+      this.expiration = new Date()
+    }
+
+    clearTimeout(this.expirationTimeout)
+
+    this.emit('expired', this)
+  }
+
+  /**
+   * @method disableExpiration
+   * Do not expire this model/record.
+   */
+  disableExpiration () {
+    this.expires = -1
   }
 
   /**
