@@ -574,13 +574,11 @@ class Store extends NGN.EventEmitter {
       return null
     }
 
-    purgedRecord.record.onceoff('expired')
-    purgedRecord.record.off('expired')
+    purgedRecord.record.removeAllListeners('expired')
 
     this.add(purgedRecord.record, true)
 
-    this._softarchive[purgedRecord.index].onceoff('expired')
-    this._softarchive[purgedRecord.index].off('expired')
+    this._softarchive[purgedRecord.index].removeAllListeners('expired')
     this._softarchive.splice(purgedRecord.index, 1)
 
     this.emit('record.restored', purgedRecord.record)
