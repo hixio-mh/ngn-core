@@ -447,7 +447,7 @@ Object.defineProperties(NGN, {
    */
   stack: NGN.get(function () {
     const me = this
-    const originalStack =  (new Error).stack.split('\n')
+    const originalStack = (new Error).stack.split('\n')
     let stack = (new Error).stack.split('\n') || []
 
     stack = stack.filter(function (item) {

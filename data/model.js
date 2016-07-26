@@ -442,9 +442,7 @@ class Model extends NGN.EventEmitter {
 
     // If the process has reached this far, expiration
     // actions should be enabled.
-    if (this.ignoreTTL) {
-      this.ignoreTTL = false
-    }
+    this.ignoreTTL = false
 
     // Set the new expiration time period
     this.expiration = value
@@ -467,6 +465,10 @@ class Model extends NGN.EventEmitter {
    * Indicates the record/model is expired.
    */
   get expired () {
+    if (this.ignoreTTL) {
+      return false
+    }
+
     return Date.now() >= this.expires.getTime()
   }
 

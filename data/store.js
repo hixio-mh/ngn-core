@@ -38,6 +38,7 @@ class Store extends NGN.EventEmitter {
       _created: NGN.private([]),
       _deleted: NGN.private([]),
       _loading: NGN.private(false),
+      _softarchive: NGN.private([]),
 
       /**
        * @property {NGN.DATA.Proxy} proxy
@@ -66,7 +67,61 @@ class Store extends NGN.EventEmitter {
        * @cfgproperty {boolean} [autoRemoveExpiredRecords=true]
        * When set to `true`, the store will automatically delete expired records.
        */
-      autoRemoveExpiredRecords: NGN.privateconst(NGN.coalesce(cfg.autoRemoveExpiredRecords, true))
+      autoRemoveExpiredRecords: NGN.privateconst(NGN.coalesce(cfg.autoRemoveExpiredRecords, true)),
+
+      /**
+       * @cfg {boolean} [softDelete=false]
+       * When set to `true`, the store makes a copy of a record before removing
+       * it from the store. The store will still emit a `record.delete` event,
+       * and it will still behanve as though the record has been completely
+       * removed. However; the record copy can be retrieved using the #restore
+       * method.
+       *
+       * Since it is not always desirable to store a copy of every deleted
+       * record indefinitely, it is possible to expire and permanently remove
+       * records by setting the #softDeleteTtl.
+       *
+       * ```js
+       * var People = new NGN.DATA.Store({
+       *   model: Person,
+       *   softDelete: true,
+       *   softDeleteTtl: 10000
+       * })
+       *
+       * People.add(somePerson)
+       *
+       * var removedRecordId
+       * People.once('record.delete', function (record) {
+       *   removedRecordId = record.id
+       * })
+       *
+       * People.remove(somePerson)
+       *
+       * setTimeout(function () {
+       *   People.restore(removedRecordId)
+       * }, 5000)
+       *
+       * ```
+       *
+       * The code above creates a new store and adds a person to it.
+       * Then a placeholder variable (`removedRecordId`) is created.
+       * Next, a one-time event listener is added to the store, specifically
+       * for handling the removal of a record. Then the record is removed,
+       * which triggers the `record.delete` event, which populates
+       * `removedRecordId` with the ID of the record that was deleted.
+       * Finally, the code waits for 5 seconds, then restores the record. If
+       * the #restore method _wasn't_ called, the record would be purged
+       * from memory after 10 seconds (because `softDeleteTtl` is set to 10000
+       * milliseconds).
+       */
+      softDelete: NGN.privateconst(NGN.coalesce(cfg.softDelete, false)),
+
+      /**
+       * @cfg {number} [softDeleteTtl=-1]
+       * This is the number of milliseconds the store waits before purging a
+       * soft-deleted record from memory. `-1` = Infinite (no TTL).
+       */
+      softDeleteTtl: NGN.private(NGN.coalesce(cfg.softDeleteTtl, -1))
     })
 
     let obj = {}
@@ -81,6 +136,8 @@ class Store extends NGN.EventEmitter {
       'record.create',
       'record.update',
       'record.delete',
+      'record.restored',
+      'record.purged',
       'clear',
       'filter.create',
       'filter.delete',
@@ -264,6 +321,10 @@ class Store extends NGN.EventEmitter {
     })
 
     record.on('expired', () => {
+      if (!record.expired) {
+        return
+      }
+
       this.emit('record.expired', record)
 
       if (this.autoRemoveExpiredRecords) {
@@ -333,6 +394,7 @@ class Store extends NGN.EventEmitter {
     if (typeof record !== 'object' || (!(record instanceof NGN.DATA.Entity) && !record.checksum)) {
       return -1
     }
+
     return this._data.findIndex(function (el) {
       return el.checksum === record.checksum
     })
@@ -389,6 +451,20 @@ class Store extends NGN.EventEmitter {
     if (removedRecord.length > 0) {
       removedRecord = removedRecord[0]
       this.unapplyIndices(dataIndex)
+
+      if (this.softDelete) {
+        if (this.softDeleteTtl >= 0) {
+          const checksum = removedRecord.checksum
+          removedRecord.once('expired', () => {
+            this.purgeDeletedRecord(checksum)
+          })
+
+          removedRecord.expires = this.softDeleteTtl
+        }
+
+        this._softarchive.push(removedRecord)
+      }
+
       if (!this._loading) {
         let i = this._created.indexOf(removedRecord)
         if (i >= 0) {
@@ -409,12 +485,124 @@ class Store extends NGN.EventEmitter {
   }
 
   /**
+   * @method findArchivedRecord
+   * Retrieve an archived record.
+   * @param  {string} checksum
+   * Checksum of the record.
+   * @return {object}
+   * Returns the archived record and it's index within the deletion archive.
+   * ```js
+   * {
+   *   index: <number>,
+   *   record: <NGN.DATA.Model>
+   * }
+   * ```
+   * @private
+   */
+  findArchivedRecord (checksum) {
+    let index
+    let record = this._softarchive.filter((record, i) => {
+      if (record.checksum === checksum) {
+        index = i
+        return true
+      }
+    })
+
+    if (record.length !== 1) {
+      let source
+      try {
+        source = NGN.stack.pop().path
+      } catch (e) {
+        source = 'Unknown'
+      }
+
+      console.warn('Cannot purge record. %c' + record.length + ' records found%c. Source: %c' + source, NGN.css, '', NGN.css)
+      return null
+    }
+
+    return {
+      index: index,
+      record: record[0]
+    }
+  }
+
+  /**
+   * @method purgeDeletedRecord
+   * Remove a soft-deleted record from the store permanently.
+   * This cannot be undone, and there are no events for this action.
+   * @param  {string} checksum
+   * Checksum of the record.
+   * @return {NGN.DATA.Model}
+   * Returns the purged record. This will be `null` if the record cannot be
+   * found or does not exist.
+   * @fires {NGN.DATA.Model} record.purged
+   * This event is triggered when a record is removed from the soft-delete
+   * archive.
+   * @private
+   */
+  purgeDeletedRecord (checksum) {
+    const purgedRecord = this.findArchivedRecord(checksum)
+
+    // If there is no record, abort (the findArchivedRecord emits a warning)
+    if (purgedRecord === null) {
+      return null
+    }
+
+    this._softarchive.splice(purgedRecord.index, 1)
+
+    this.emit('record.purged', purgedRecord.record)
+
+    return purgedRecord.record
+  }
+
+  /**
+   * @method restore
+   * Restore a soft-deleted record to the store. This does not preserve the
+   * original index (a new index number is assigned).
+   * @param  {string} checksum
+   * Checksum of the record.
+   * @return {NGN.DATA.Model}
+   * Returns the purged record. This will be `null` if the record cannot be
+   * found or does not exist.
+   * @fires record.restored
+   */
+  restore (checksum) {
+    const purgedRecord = this.findArchivedRecord(checksum)
+
+    // If there is no record, abort (the findArchivedRecord emits a warning)
+    if (purgedRecord === null) {
+      return null
+    }
+
+    purgedRecord.record.onceoff('expired')
+    purgedRecord.record.off('expired')
+
+    this.add(purgedRecord.record, true)
+
+    this._softarchive[purgedRecord.index].onceoff('expired')
+    this._softarchive[purgedRecord.index].off('expired')
+    this._softarchive.splice(purgedRecord.index, 1)
+
+    this.emit('record.restored', purgedRecord.record)
+
+    return purgedRecord.record
+  }
+
+  /**
    * @method clear
    * Removes all data.
+   * @param {boolean} [purgeSoftDelete=true]
+   * Purge soft deleted records from memory.
    * @fires clear
    * Fired when all data is removed
    */
-  clear () {
+  clear (purge = true) {
+    if (!purge) {
+      this._softarchive = this._data
+    } else {
+      this._softarchive = []
+    }
+
     this._data = []
 
     Object.keys(this._index).forEach(index => {
