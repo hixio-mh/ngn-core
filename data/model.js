@@ -188,6 +188,9 @@ class Model extends NGN.EventEmitter {
       // Used to hold a setTimeout method for expiration events.
       expirationTimeout: NGN.private(null),
 
+      // Placeholder expiration flag.
+      hasExpired: NGN.private(false),
+
       // Used to prevent expiration of a record.
       ignoreTTL: NGN.private(false),
 
@@ -448,10 +451,12 @@ class Model extends NGN.EventEmitter {
     this.expiration = value
 
     // If the record is already expired, immediately trigger the expiration.
-    if (this.expired) {
+    if (Date.now() >= this.expiration.getTime()) {
       this.expire()
       return
     }
+
+    this.hasExpired = false
 
     // If the expiration is in the future, set a timer to expire.
     let waitPeriod = this.expiration.getTime() - Date.now()
@@ -469,7 +474,7 @@ class Model extends NGN.EventEmitter {
       return false
     }
 
-    return Date.now() >= this.expires.getTime()
+    return this.hasExpired
   }
 
   /**
@@ -650,6 +655,10 @@ class Model extends NGN.EventEmitter {
    * will immediately be marked as `expired`.
    */
   expire (duration) {
+    if (this.expired) {
+      return
+    }
+
     if (duration) {
       this.expires = duration
       return
@@ -660,9 +669,7 @@ class Model extends NGN.EventEmitter {
     }
 
     // Force expiration.
-    if (!this.expired) {
-      this.expiration = new Date()
-    }
+    this.hasExpired = true
 
     clearTimeout(this.expirationTimeout)
 

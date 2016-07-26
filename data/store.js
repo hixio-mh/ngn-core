@@ -575,6 +575,7 @@ class Store extends NGN.EventEmitter {
     }
 
     purgedRecord.record.removeAllListeners('expired')
+    purgedRecord.record.expires = this.softDeleteTtl
 
     this.add(purgedRecord.record, true)
 
