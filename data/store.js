@@ -138,6 +138,7 @@ class Store extends NGN.EventEmitter {
       'record.delete',
       'record.restored',
       'record.purged',
+      'record.move',
       'clear',
       'filter.create',
       'filter.delete',
@@ -277,6 +278,77 @@ class Store extends NGN.EventEmitter {
     this._data.push(record)
     !this._loading && this._created.indexOf(record) < 0 && this._created.push(record)
     !NGN.coalesce(suppressEvent, false) && this.emit('record.create', record)
+    return record
+  }
+
+  /**
+   * @method insertBefore
+   * Add a record before the specified index.
+   * @param  {NGN.DATA.Model|number} target
+   * The model or index where the new record will be added before.
+   * @param {NGN.DATA.Model|object} data
+   * Accepts an existing NGN Data Model or a JSON object.
+   * If a JSON object is supplied, it will be applied to
+   * the data model specified in cfg#model. If no model
+   * is specified, the raw JSON data will be stored.
+   * @param {boolean} [suppressEvent=false]
+   * Set this to `true` to prevent the `record.create` event
+   * from firing.
+   * @return {NGN.DATA.Model}
+   * Returns the new record.
+   */
+  insertBefore (index, data, suppressEvent = false) {
+    return this.insert(index, data, suppressEvent, 'before')
+  }
+
+  /**
+   * @method insertAfter
+   * Add a record after the specified index.
+   * @param  {NGN.DATA.Model|number} target
+   * The model or index where the new record will be added after.
+   * @param {NGN.DATA.Model|object} data
+   * Accepts an existing NGN Data Model or a JSON object.
+   * If a JSON object is supplied, it will be applied to
+   * the data model specified in cfg#model. If no model
+   * is specified, the raw JSON data will be stored.
+   * @param {boolean} [suppressEvent=false]
+   * Set this to `true` to prevent the `record.create` event
+   * from firing.
+   * @return {NGN.DATA.Model}
+   * Returns the new record.
+   */
+  insertAfter (index, data, suppressEvent = false) {
+    return this.insert(index + 1, data, suppressEvent, 'after')
+  }
+
+  /**
+   * @method insert
+   * Add a record somewhere within the existing recordset (as opposed to simply appending).
+   * @param  {NGN.DATA.Model|number} target
+   * The model or index where the new record will be added after.
+   * @param {NGN.DATA.Model|object} data
+   * Accepts an existing NGN Data Model or a JSON object.
+   * If a JSON object is supplied, it will be applied to
+   * the data model specified in cfg#model. If no model
+   * is specified, the raw JSON data will be stored.
+   * @param {boolean} [suppressEvent=false]
+   * Set this to `true` to prevent the `record.create` event
+   * from firing.
+   * @param {string} [position=after]
+   * The position (before or after) where the record should be added.
+   * @return {NGN.DATA.Model}
+   * Returns the new record.
+   */
+  insert (index, data, suppressEvent = false, position = 'after') {
+    let record = this.add(data, true)
+    if (record) {
+      this.move(this._data.length - 1, index, position, false)
+
+      if (!suppressEvent) {
+        this.emit('record.create', record)
+      }
+    }
+
     return record
   }
 
@@ -1201,6 +1273,88 @@ class Store extends NGN.EventEmitter {
     }
 
     return []
+  }
+
+  /**
+   * @method move
+   * Move an existing record to a specific index. This can be used
+   * to reorder a single record.
+   * @param {NGN.DATA.Model|number|string} source
+   * The record or the index of a record within the store to move.
+   * This can also be the unique ID of a record.
+   * @param {NGN.DATA.Model|number|string} target
+   * The record or the index of a record within the store where the source
+   * will be positioned against. This can also be the unique ID of a record.
+   * @param {boolean} [suppressEvent=false]
+   * Set this to `true` to prevent the `record.create` event
+   * from firing.
+   */
+  move (source, target, suppressEvent = false) {
+    if (source === undefined) {
+      console.warn('Cannot move record. No source specified.')
+      return
+    }
+
+    if (target === undefined) {
+      console.warn('Cannot move record. No target specified.')
+      return
+    }
+
+    source = this.getRecordIndex(source)
+    target = this.getRecordIndex(target)
+
+    // If the positins haven't actually changed, stop processing.
+    if (source === target) {
+      return
+    }
+
+    this._data.splice(target, 0, this._data.splice(source, 1)[0])
+
+    if (!suppressEvent) {
+      this.emit('record.move', {
+        oldIndex: source,
+        newIndex: target,
+        record: this._data[target]
+      })
+    }
+
+    this.reindex()
+  }
+
+  /**
+   * @method getRecordIndex
+   * Returns the index of a record using sanitize input.
+   * @param  {NGN.DATA.Model|number|String} value
+   * The record or the index of a record within the store.
+   * This can also be the unique ID of a record.
+   * @return {NGN.DATA.Model}
+   * Returns the model or `null`
+   */
+  getRecordIndex (value) {
+    if (value === undefined) {
+      console.warn('No argument passed to getRecordIndex().')
+      return null
+    }
+
+    if (typeof value === 'number') {
+      if (value < 0 || value >= this._data.length) {
+        console.warn('%c' + value + '%c out of bounds.', NGN.css, '')
+        return null
+      }
+
+      return value
+    } else if (typeof value === 'string') {
+      let id = value
+
+      value = this.find(id)
+
+      if (!value) {
+        console.warn('%c' + id + '%c does not exist or cannot be found in the store.', NGN.css, '')
+        return null
+      }
+    }
+
+    return this.indexOf(value)
   }
 
   /**
