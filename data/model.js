@@ -1004,6 +1004,7 @@ class Model extends NGN.EventEmitter {
           }
           this.changelog.push(c)
           this.emit('field.update', c)
+          this.emit('field.update.' + field, c)
           if (!me.validate(field)) {
             me.emit('field.invalid', {
               field: field
@@ -1179,33 +1180,42 @@ class Model extends NGN.EventEmitter {
     const me = this
 
     model.on('field.update', function (delta) {
-      me.emit('field.update', {
+      let payload = {
         action: 'update',
         field: name + '.' + delta.field,
         old: delta.old,
         new: delta.new,
         join: true
-      })
+      }
+
+      me.emit('field.update', payload)
+      me.emit('field.update.' + name + '.' + delta.field, payload)
     })
 
     model.on('field.create', function (delta) {
-      me.emit('field.update', {
+      let payload = {
         action: 'update',
         field: name + '.' + delta.field,
         old: null,
         new: null,
         join: true
-      })
+      }
+
+      me.emit('field.update', payload)
+      me.emit('field.update.' + name + '.' + delta.field, payload)
     })
 
     model.on('field.remove', function (delta) {
-      me.emit('field.update', {
+      let payload = {
         action: 'update',
         field: name + '.' + delta.field,
         old: delta.value,
         new: null,
         join: true
-      })
+      }
+
+      me.emit('field.update', payload)
+      me.emit('field.update.' + name + '.' + delta.field, payload)
     })
   }
 
@@ -1220,12 +1230,14 @@ class Model extends NGN.EventEmitter {
     if (!this.rawjoins.hasOwnProperty(name)) {
       return
     }
+
     if (this.rawjoins[name].hasOwnProperty('proxy')) {
       const me = this
 
       this.rawjoins[name].on('record.create', function (record) {
         let old = me[name].data
         old.pop()
+
         let c = {
           action: 'update',
           field: name,
@@ -1233,12 +1245,16 @@ class Model extends NGN.EventEmitter {
           old: old,
           new: me[name].data
         }
+
         me.emit('field.update', c)
+        me.emit('field.update.' + name, c)
       })
+
       this.rawjoins[name].on('record.update', function (record, delta) {
         if (!delta) {
           return
         }
+
         let c = {
           action: 'update',
           field: name + '.' + delta.field,
@@ -1246,11 +1262,15 @@ class Model extends NGN.EventEmitter {
           old: delta.old,
           new: delta.new
         }
+
         me.emit('field.update', c)
+        me.emit('field.update.' + name + '.' + delta.field, c)
       })
+
       this.rawjoins[name].on('record.delete', function (record) {
         let old = me[name].data
         old.push(record.data)
+
         let c = {
           action: 'update',
           field: name,
@@ -1258,7 +1278,9 @@ class Model extends NGN.EventEmitter {
           old: old,
           new: me[name].data
         }
+
         me.emit('field.update', c)
+        me.emit('field.update.' + name, c)
       })
     }
   }
