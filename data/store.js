@@ -493,6 +493,11 @@ class Store extends NGN.EventEmitter {
    * than using a reference to a data model or an index
    * number (index is fastest).
    * @fires record.delete
+   * The record delete event sends 2 arguments to handler methods:
+   * `record` and `index`. The record refers to the model that was
+   * removed. The `index` refers to the position of the record within
+   * the store's data list. **NOTICE** the `index` refers to where
+   * the record _used to be_.
    * @returns {NGN.DATA.Model}
    * Returns the data model that was just removed. If a model
    * is unavailable (i.e. remove didn't find the specified record),
@@ -547,7 +552,7 @@ class Store extends NGN.EventEmitter {
       }
 
       if (!NGN.coalesce(suppressEvents, false)) {
-        this.emit('record.delete', removedRecord)
+        this.emit('record.delete', removedRecord, dataIndex)
       }
 
       return removedRecord
