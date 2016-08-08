@@ -279,7 +279,12 @@ class Store extends NGN.EventEmitter {
     this.applyIndices(record, this._data.length)
     this._data.push(record)
     !this._loading && this._created.indexOf(record) < 0 && this._created.push(record)
-    !NGN.coalesce(suppressEvent, false) && this.emit('record.create', record)
+    if (!NGN.coalesce(suppressEvent, false)) {
+      this.emit('record.create', record)
+    }
+    if (!record.valid) {
+      this.emit('record.invalid', record)
+    }
     return record
   }
 
