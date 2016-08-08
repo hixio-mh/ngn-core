@@ -1185,7 +1185,11 @@ class Model extends NGN.EventEmitter {
         field: name + '.' + delta.field,
         old: delta.old,
         new: delta.new,
-        join: true
+        join: true,
+        originalEvent: {
+          event: 'field.update',
+          record: model
+        }
       }
 
       me.emit('field.update', payload)
@@ -1198,7 +1202,11 @@ class Model extends NGN.EventEmitter {
         field: name + '.' + delta.field,
         old: null,
         new: null,
-        join: true
+        join: true,
+        originalEvent: {
+          event: 'field.create',
+          record: model
+        }
       }
 
       me.emit('field.update', payload)
@@ -1211,7 +1219,11 @@ class Model extends NGN.EventEmitter {
         field: name + '.' + delta.field,
         old: delta.value,
         new: null,
-        join: true
+        join: true,
+        originalEvent: {
+          event: 'field.remove',
+          record: model
+        }
       }
 
       me.emit('field.update', payload)
