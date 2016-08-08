@@ -773,14 +773,13 @@ class Model extends NGN.EventEmitter {
     if (!this.validation) {
       return true
     }
-
     const me = this
 
     // Single Attribute Validation
     if (attribute) {
       if (this.validators.hasOwnProperty(attribute)) {
         for (let i = 0; i < this.validators[attribute].length; i++) {
-          if (!me.validators[attribute][i](me[attribute])) {
+          if (!me.validators[attribute][i].apply(me, [me[attribute]])) {
             me.invalidDataAttributes.indexOf(attribute) < 0 && me.invalidDataAttributes.push(attribute)
             return false
           } else {
@@ -825,6 +824,7 @@ class Model extends NGN.EventEmitter {
       if (this.autoid && field === this.idAttribute) {
         return true
       }
+
       return false
     }
 

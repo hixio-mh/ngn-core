@@ -375,7 +375,7 @@ Object.defineProperties(NGN, {
    * Returns the type (all lower case).
    */
   typeof: NGN.define(false, false, false, function (el) {
-    var value = Object.prototype.toString.call(el).split(' ')[1].replace(/\]|\[/gi, '').toLowerCase();
+    var value = Object.prototype.toString.call(el).split(' ')[1].replace(/\]|\[/gi, '').toLowerCase()
     if (value === 'function') {
       if (!el.name) {
         return el.toString().replace(/\n/gi, '').replace(/^function\s|\(.*$/mgi,'').toLowerCase()
