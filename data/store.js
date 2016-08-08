@@ -139,6 +139,8 @@ class Store extends NGN.EventEmitter {
       'record.restored',
       'record.purged',
       'record.move',
+      'record.invalid',
+      'record.valid',
       'clear',
       'filter.create',
       'filter.delete',
@@ -390,6 +392,14 @@ class Store extends NGN.EventEmitter {
     record.on('field.delete', delta => {
       this.updateIndice(delta.field, delta.old, undefined, this._data.indexOf(record))
       this.emit('record.update', record, delta)
+    })
+
+    record.on('field.invalid', () => {
+      this.emit('record.invalid', record)
+    })
+
+    record.on('field.valid', () => {
+      this.emit('record.valid', record)
     })
 
     record.on('expired', () => {

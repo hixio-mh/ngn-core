@@ -457,7 +457,7 @@ Object.defineProperties(NGN, {
         .replace(/^.*\s\(/i, '')
         .replace(/\)/gi, '')
         .replace(/^.*\@/i, '')
-        .replace((me.nodelike ? process.cwd() : window.location.origin), '')
+        .replace((window !== undefined ? window.location.origin : (process !== undefined ? process.cwd() : '')), '')
         .replace(/^.*\:\/\//, '')
         .replace(/\s{1,100}at\s{1,100}/gi, '')
         .replace(/anonymous\>/, 'console')

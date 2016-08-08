@@ -769,6 +769,11 @@ class Model extends NGN.EventEmitter {
     * Returns true or false based on the validity of data.
     */
   validate (attribute) {
+    // If validation is turned off, treat everything as valid.
+    if (!this.validation) {
+      return true
+    }
+
     const me = this
 
     // Single Attribute Validation
@@ -948,11 +953,13 @@ class Model extends NGN.EventEmitter {
     suppressEvents = suppressEvents !== undefined ? suppressEvents : false
     const me = this
     let cfg = null
+
     if (field.toLowerCase() !== 'id') {
       if (typeof field === 'object') {
         if (!field.name) {
           throw new Error('Cannot create data field. The supplied configuration does not contain a unique data field name.')
         }
+
         cfg = field
         field = cfg.name
         delete cfg.name
@@ -965,6 +972,7 @@ class Model extends NGN.EventEmitter {
         } catch (e) {
           console.warn('%c' + field + '%c data field defined multiple times. Only the last definition will be used.', NGN.css, '', NGN.css, '')
         }
+
         delete me[field]
       }
 
@@ -995,18 +1003,30 @@ class Model extends NGN.EventEmitter {
         },
         set: function (value) {
           let old = me.raw[field]
+          const wasInvalid = !me.validate(field)
+
           me.raw[field] = value
+
           let c = {
             action: 'update',
             field: field,
             old: old,
             new: me.raw[field]
           }
+
           this.changelog.push(c)
           this.emit('field.update', c)
           this.emit('field.update.' + field, c)
+
+          // If the field is invalid, fire event.
           if (!me.validate(field)) {
             me.emit('field.invalid', {
+              field: field
+            })
+          } else if (wasInvalid) {
+            // If the field BECAME valid (compared to prior value),
+            // emit an event.
+            me.emit('field.valid', {
               field: field
             })
           }
@@ -1042,9 +1062,9 @@ class Model extends NGN.EventEmitter {
           }
         }
         if (me.fields[field].hasOwnProperty('validate')) {
-          if (typeof me.fields[field] === 'function') {
+          if (typeof me.fields[field].validate === 'function') {
             me.addValidator(field, function (val) {
-              return me.fields[field](val)
+              return me.fields[field].validate.apply(me, [val])
             })
           } else {
             const source = NGN.stack.pop()
@@ -1108,12 +1128,14 @@ class Model extends NGN.EventEmitter {
 
     const me = this
     let entityType = 'model'
+
     if (cfg.type instanceof NGN.DATA.Store) {
       entityType = 'store'
     } else if (NGN.typeof(cfg.type) === 'array') {
       if (cfg.type.length === 0) {
         throw new Error(name + ' cannot be an empty store. A model must be provided.')
       }
+
       entityType = 'collection'
     } else if (typeof cfg.type === 'object') {
       if (cfg.type.model) {
@@ -1229,6 +1251,16 @@ class Model extends NGN.EventEmitter {
       me.emit('field.update', payload)
       me.emit('field.update.' + name + '.' + delta.field, payload)
     })
+
+    model.on('field.invalid', function (data) {
+      me.emit('field.invalid')
+      me.emit('field.invalid.' + name + '.' + data.field)
+    })
+
+    model.on('field.valid', function (data) {
+      me.emit('field.valid')
+      me.emit('field.valid.' + name + '.' + data.field)
+    })
   }
 
   /**
@@ -1305,6 +1337,16 @@ class Model extends NGN.EventEmitter {
 
         me.emit('field.update', c)
         me.emit('field.update.' + name, c)
+      })
+
+      this.rawjoins[name].on('record.invalid', function (data) {
+        me.emit('field.invalid', data.field)
+        me.emit('field.invalid.' + name, data.field)
+      })
+
+      this.rawjoins[name].on('record.valid', function (data) {
+        me.emit('field.valid', data.field)
+        me.emit('field.valid.' + name, data.field)
       })
     }
   }
