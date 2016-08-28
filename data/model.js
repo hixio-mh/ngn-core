@@ -146,7 +146,7 @@ class Model extends NGN.EventEmitter {
        * @private
        * @readonly
        */
-      isDestroyed: NGN.private(false),
+      isRecordDestroyed: NGN.private(false),
 
       /**
        * @property {String} [oid=null]
@@ -383,7 +383,8 @@ class Model extends NGN.EventEmitter {
       'validator.remove',
       'relationship.create',
       'relationship.remove',
-      'expired'
+      'expired',
+      'deleted'
     ]
 
     if (NGN.BUS) {
@@ -401,6 +402,23 @@ class Model extends NGN.EventEmitter {
     if (config.hasOwnProperty('expires')) {
       this.expires = config.expires
     }
+  }
+
+  get deleted () {
+    return this.isRecordDestroyed
+  }
+
+  set isDestroyed (value) {
+    if (typeof value !== 'boolean') {
+      console.warn(NGN.stack)
+      throw new Error('Invalid data type. isDestroyed must be a boolean. Received ' + (typeof value))
+    }
+
+    if (value) {
+      this.emit('deleted')
+    }
+
+    this.isRecordDestroyed = value
   }
 
   get expires () {

@@ -415,7 +415,10 @@ class Store extends NGN.EventEmitter {
       this.emit('record.expired', record)
 
       if (this.autoRemoveExpiredRecords) {
-        this.remove(record)
+        const index = this.indexOf(record)
+        if (index >= 0) {
+          this.remove(record)
+        }
       }
     })
   }
@@ -566,6 +569,8 @@ class Store extends NGN.EventEmitter {
         }
       }
 
+      removedRecord.isDestroyed = true
+
       if (!NGN.coalesce(suppressEvents, false)) {
         this.emit('record.delete', removedRecord, dataIndex)
       }
@@ -673,6 +678,8 @@ class Store extends NGN.EventEmitter {
 
     this._softarchive[purgedRecord.index].removeAllListeners('expired')
     this._softarchive.splice(purgedRecord.index, 1)
+
+    purgedRecord.record.isDestroyed = false
 
     this.emit('record.restored', purgedRecord.record)
 
