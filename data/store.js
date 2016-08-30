@@ -441,7 +441,11 @@ class Store extends NGN.EventEmitter {
     this._deleted = []
     this._created = []
 
-    this.emit(event || 'load')
+    // Slight delay to prevent faster systems from
+    // responding before data is written to memory.
+    setTimeout(() => {
+      this.emit(event || 'load')
+    }, 10)
   }
 
   /**
@@ -541,7 +545,11 @@ class Store extends NGN.EventEmitter {
       throw new Error('Record removal failed (record not found at index ' + (dataIndex || '').toString() + ').')
     }
 
+    this._data[dataIndex].isDestroyed = true
+
     removedRecord = this._data.splice(dataIndex, 1)
+
+    removedRecord.isDestroyed = true
 
     if (removedRecord.length > 0) {
       removedRecord = removedRecord[0]
@@ -568,8 +576,6 @@ class Store extends NGN.EventEmitter {
           this._deleted.push(removedRecord)
         }
       }
-
-      removedRecord.isDestroyed = true
 
       if (!NGN.coalesce(suppressEvents, false)) {
         this.emit('record.delete', removedRecord, dataIndex)

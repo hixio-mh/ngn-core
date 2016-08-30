@@ -414,11 +414,11 @@ class Model extends NGN.EventEmitter {
       throw new Error('Invalid data type. isDestroyed must be a boolean. Received ' + (typeof value))
     }
 
+    this.isRecordDestroyed = value
+
     if (value) {
       this.emit('deleted')
     }
-
-    this.isRecordDestroyed = value
   }
 
   get expires () {
@@ -1022,6 +1022,15 @@ class Model extends NGN.EventEmitter {
         set: function (value) {
           let old = me.raw[field]
           const wasInvalid = !me.validate(field)
+
+          // if (old === value) {
+          //   console.log('HIT')
+          //   return
+          // } else if (me.fields[field].type === Object && typeof value === 'object') {
+          //   if (JSON.stringify(old) === JSON.stringify(value)) {
+          //     return
+          //   }
+          // }
 
           me.raw[field] = value
 
