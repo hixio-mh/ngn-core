@@ -14,7 +14,7 @@
  * Fired when an invalid value is detected in an data field.
  */
 
-class Model extends NGN.EventEmitter {
+class NgnDataModel extends NGN.EventEmitter {
   constructor (config) {
     config = config || {}
 
@@ -1540,7 +1540,7 @@ NGN.DATA = NGN.DATA || {}
 Object.defineProperties(NGN.DATA, {
   Model: NGN.public(function (cfg) {
     const ModelLoader = function (data) {
-      let model = new Model(cfg)
+      let model = new NgnDataModel(cfg)
       if (data) {
         model.load(data)
       }
@@ -1550,7 +1550,7 @@ Object.defineProperties(NGN.DATA, {
     return ModelLoader
   }),
 
-  Entity: NGN.private(Model)
+  Entity: NGN.private(NgnDataModel)
 })
 
 if (NGN.nodelike) {

@@ -7,7 +7,7 @@
  * custom proxies. However; NGN.DATA.HttpProxy and NGN.DATA.WebSocketProxy
  * are also available for use.
  */
-class Proxy extends NGN.EventEmitter {
+class NgnDataProxy extends NGN.EventEmitter {
   constructor (config) {
     config = config || {}
 
@@ -105,4 +105,4 @@ class Proxy extends NGN.EventEmitter {
   }
 }
 
-Object.defineProperty(NGN.DATA, 'Proxy', NGN.const(Proxy))
+Object.defineProperty(NGN.DATA, 'Proxy', NGN.const(NgnDataProxy))

@@ -11,7 +11,7 @@
  * Fired when a record(s) is removed. The old record
  * is provided as an argument to the event handler.
  */
-class Store extends NGN.EventEmitter {
+class NgnDataStore extends NGN.EventEmitter {
   constructor (cfg) {
     cfg = cfg || {}
     super(cfg)
@@ -445,7 +445,7 @@ class Store extends NGN.EventEmitter {
     // responding before data is written to memory.
     setTimeout(() => {
       this.emit(event || 'load')
-    }, 10)
+    }, 100)
   }
 
   /**
@@ -1423,4 +1423,4 @@ class Store extends NGN.EventEmitter {
  * array.
  */
 
-NGN.DATA.Store = Store
+NGN.DATA.Store = NgnDataStore
