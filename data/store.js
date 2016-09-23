@@ -41,11 +41,10 @@ class NgnDataStore extends NGN.EventEmitter {
       _softarchive: NGN.private([]),
 
       /**
-       * @property {NGN.DATA.Proxy} proxy
+       * @cfg {NGN.DATA.Proxy} proxy
        * The proxy used to transmit data over a network.
-       * @private
        */
-      proxy: NGN.private(null),
+      proxy: NGN.private(cfg.proxy || null),
 
       /**
        * @cfg {boolean} [allowDuplicates=true]
@@ -157,6 +156,14 @@ class NgnDataStore extends NGN.EventEmitter {
           NGN.BUS.emit(eventName, args)
         })
       })
+    }
+
+    if (cfg.proxy) {
+      if (cfg.proxy instanceof NGN.DATA.Proxy) {
+        this.proxy.init(this)
+      } else {
+        throw new Error('Invalid proxy configuration.')
+      }
     }
   }
 

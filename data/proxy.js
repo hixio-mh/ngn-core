@@ -4,27 +4,20 @@
  * @class NGN.DATA.Proxy
  * Provides a gateway to remote services such as HTTP and
  * websocket endpoints. This can be used directly to create
- * custom proxies. However; NGN.DATA.HttpProxy and NGN.DATA.WebSocketProxy
- * are also available for use.
+ * custom proxies.
  */
 class NgnDataProxy extends NGN.EventEmitter {
   constructor (config) {
     config = config || {}
 
-    if (!config.store) {
-      throw new Error('NGN.DATA.Proxy requires a NGN.DATA.Store.')
-    }
-
-    super()
-
-    config.store.proxy = this
+    super(config)
 
     Object.defineProperties(this, {
       /**
        * @configproperty {NGN.DATA.Store} store (required)
        * THe store for data being proxied.
        */
-      store: NGN.const(config.store),
+      store: NGN.private(null),
 
       /**
        * @configproperty {string} [url=http://localhost
@@ -55,8 +48,28 @@ class NgnDataProxy extends NGN.EventEmitter {
     })
   }
 
+  init (store) {
+    const me = this
+
+    Object.defineProperties(store, {
+      save: NGN.const(function () {
+        return me.save.apply(store, arguments)
+      }),
+
+      fetch: NGN.const(function () {
+        return me.fetch.apply(store, arguments)
+      }),
+
+      changelog: NGN.get(function () {
+        return me.changelog
+      })
+    })
+
+    me.store = store
+  }
+
   /**
-   * @property actions
+   * @property changelog
    * A list of the record changes that have occurred.
    * @returns {object}
    * An object is returned with 3 keys representative of the
@@ -80,8 +93,14 @@ class NgnDataProxy extends NGN.EventEmitter {
    * data objects.
    * @private
    */
-  get actions () {
+  get changelog () {
     const me = this
+
+    if (this.store === null) {
+      console.warn('Proxy was not initialized.')
+      return []
+    }
+
     return {
       create: this.store._created,
       update: this.store.records.filter(function (record) {
@@ -105,4 +124,5 @@ class NgnDataProxy extends NGN.EventEmitter {
   }
 }
 
-Object.defineProperty(NGN.DATA, 'Proxy', NGN.const(NgnDataProxy))
+NGN.DATA.Proxy = NgnDataProxy
+// Object.defineProperty(NGN.DATA, 'Proxy', NGN.const(NgnDataProxy))
