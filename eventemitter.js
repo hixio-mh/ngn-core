@@ -74,7 +74,7 @@ NGN.inherit(Object.defineProperties({}, {
     preventDefaultAction = NGN.coalesce(preventDefaultAction, false)
 
     return function (e) {
-      if (preventDefaultAction && e.hasOwnProperty('preventDefault')) {
+      if (preventDefaultAction && typeof e.preventDefault === 'function') {
         e.preventDefault()
       }
       let args = NGN.slice(arguments)//NGN.slice(arguments)
