@@ -32,12 +32,15 @@ NGN.inherit(Object.defineProperties({}, {
 
     for (let eventName in group) {
       let topic = (prefix.trim() || '') + eventName
+
       if (typeof group[eventName] === 'function') {
+        this.setMaxListeners(this.getMaxListeners() + 1)
         pool[eventName] = this.on(topic, group[eventName])
       } else {
         console.warn('%c' + topic + '%c could not be pooled in the event emitter because it\'s value is not a function.', NGN.css, '')
       }
     }
+
     if (callback) {
       callback(pool)
     }
@@ -77,8 +80,10 @@ NGN.inherit(Object.defineProperties({}, {
       if (preventDefaultAction && typeof e.preventDefault === 'function') {
         e.preventDefault()
       }
+
       let args = NGN.slice(arguments)//NGN.slice(arguments)
       args.unshift(eventName)
+
       me.emit.apply(me, args)
     }
   }),
@@ -124,11 +129,13 @@ NGN.inherit(Object.defineProperties({}, {
       }
     }
 
+    this.setMaxListeners(this.getMaxListeners() + 1)
     this.on(eventName, listener)
 
     // Provide handle back for removal of topic
     return {
       remove: function () {
+        me.setMaxListeners(me.getMaxListeners() - 1)
         me.off(eventName, listener)
       }
     }
