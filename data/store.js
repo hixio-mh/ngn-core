@@ -120,8 +120,79 @@ class NgnDataStore extends NGN.EventEmitter {
        * This is the number of milliseconds the store waits before purging a
        * soft-deleted record from memory. `-1` = Infinite (no TTL).
        */
-      softDeleteTtl: NGN.private(NGN.coalesce(cfg.softDeleteTtl, -1))
+      softDeleteTtl: NGN.private(NGN.coalesce(cfg.softDeleteTtl, -1)),
+
+      /**
+       * @cfg {Number} [FIFO=-1]
+       * Configures the store to use "**F**irst **I**n **F**irst **O**ut"
+       * record processing when it reaches a maximum number of records.
+       *
+       * For example, assume `FIFO=10`. When the 11th record is added, it
+       * will replace the oldest record (i.e. the 1st). This guarantees the
+       * store will never have more than 10 records at any given time and it
+       * will always maintain the latest records.
+       *
+       * FIFO and LIFO cannot be applied at the same time.
+       *
+       * **BE CAREFUL** when using this in combination with #insert,
+       * #insertBefore, or #insertAfter. FIFO is applied _after_ the record
+       * is added to the store but _before_ it is moved to the desired index.
+       */
+      fifo: NGN.private(NGN.coalesce(cfg.FIFO, -1)),
+
+      /**
+       * @cfg {Number} [LIFO=-1]
+       * Configures the store to use "**L**ast **I**n **F**irst **O**ut"
+       * record processing when it reaches a maximum number of records.
+       *
+       * This methos acts in the opposite manner as #FIFO. However; for
+       * all intents and purposes, this merely replaces the last record in
+       * the store when a new record is added.
+       *
+       * For example, assume `FIFO=10`. When the 11th record is added, it
+       * will replace the latest record (i.e. the 10th). This guarantees the
+       * store will never have more than 10 records at any given time. Every
+       * time a new record is added (assuming the store already has the maximum
+       * allowable records), it replaces the last record (10th) with the new
+       * record.
+       *
+       * LIFO and FIFO cannot be applied at the same time.
+       *
+       * **BE CAREFUL** when using this in combination with #insert,
+       * #insertBefore, or #insertAfter. LIFO is applied _after_ the record
+       * is added to the store but _before_ it is moved to the desired index.
+       */
+      lifo: NGN.private(NGN.coalesce(cfg.LIFO, -1)),
+
+      /**
+       * @cfg {Number} [maxRecords=-1]
+       * Setting this will prevent new records from being added past this limit.
+       * Attempting to add a record to the store beyond it's maximum will throw
+       * an error.
+       */
+      maxRecords: NGN.private(NGN.coalesce(cfg.maxRecords, -1)),
+
+      /**
+       * @cfg {Number} [minRecords=0]
+       * Setting this will prevent removal of records if the removal would
+       * decrease the count below this limit.
+       * Attempting to remove a record below the store's minimum will throw
+       * an error.
+       */
+      minRecords: NGN.private(NGN.coalesce(cfg.minRecords, 0))
     })
+
+    if (this.lifo > 0 && this.fifo > 0) {
+      throw new Error('NGN.DATA.Store can be configured as FIFO or LIFO, but not both simultaneously.')
+    }
+
+    // If LIFO/FIFO is used, disable alternative record count limitations.
+    if (this.lifo > 0 || this.fifo > 0) {
+      this.minRecords = 0
+      this.maxRecords = -1
+    } else {
+      this.minRecords = this.minRecords < 0 ? 0 : this.minRecords
+    }
 
     let obj = {}
     this._index.forEach(i => {
@@ -253,6 +324,11 @@ class NgnDataStore extends NGN.EventEmitter {
   add (data, suppressEvent) {
     let record
 
+    // Prevent creation if it will exceed maximum record count.
+    if (this.maxRecords > 0 && this._data.length + 1 > this.maxRecords) {
+      throw new Error('Maximum record count exceeded.')
+    }
+
     if (!(data instanceof NGN.DATA.Entity)) {
       try { data = JSON.parse(data) } catch (e) {}
       if (typeof data !== 'object') {
@@ -282,6 +358,13 @@ class NgnDataStore extends NGN.EventEmitter {
       }
     }
 
+    // Handle special record count processing
+    if (this.lifo > 0 && this._data.length + 1 > this.lifo) {
+      this.remove(this._data.length - 1)
+    } else if (this.fifo > 0 && this._data.length + 1 > this.fifo) {
+      this.remove(0)
+    }
+
     this.listen(record)
     this.applyIndices(record, this._data.length)
     this._data.push(record)
@@ -298,6 +381,10 @@ class NgnDataStore extends NGN.EventEmitter {
   /**
    * @method insertBefore
    * Add a record before the specified index.
+   *
+   * **BE CAREFUL** when using this in combination with #LIFO or #FIFO.
+   * LIFO/FIFO is applied _after_ the record is added to the store but
+   * _before_ it is moved to the desired index.
    * @param  {NGN.DATA.Model|number} target
    * The model or index where the new record will be added before.
    * @param {NGN.DATA.Model|object} data
@@ -318,6 +405,10 @@ class NgnDataStore extends NGN.EventEmitter {
   /**
    * @method insertAfter
    * Add a record after the specified index.
+   *
+   * **BE CAREFUL** when using this in combination with #LIFO or #FIFO.
+   * LIFO/FIFO is applied _after_ the record is added to the store but
+   * _before_ it is moved to the desired index.
    * @param  {NGN.DATA.Model|number} target
    * The model or index where the new record will be added after.
    * @param {NGN.DATA.Model|object} data
@@ -338,6 +429,10 @@ class NgnDataStore extends NGN.EventEmitter {
   /**
    * @method insert
    * Add a record somewhere within the existing recordset (as opposed to simply appending).
+   *
+   * **BE CAREFUL** when using this in combination with #LIFO or #FIFO.
+   * LIFO/FIFO is applied _after_ the record is added to the store but
+   * _before_ it is moved to the desired index.
    * @param  {NGN.DATA.Model|number} target
    * The model or index where the new record will be added after.
    * @param {NGN.DATA.Model|object} data
@@ -535,6 +630,11 @@ class NgnDataStore extends NGN.EventEmitter {
   remove (data, suppressEvents) {
     let removedRecord = []
     let dataIndex
+
+    // Prevent removal if it will exceed minimum record count.
+    if (this.minRecords > 0 && this._data.length - 1 < this.minRecords) {
+      throw new Error('Minimum record count not met.')
+    }
 
     if (typeof data === 'number') {
       dataIndex = data
