@@ -328,8 +328,70 @@ class NgnDataModel extends NGN.EventEmitter {
        */
       rawjoins: NGN.private({}),
 
-      _store: NGN.private(null)
+      _store: NGN.private(null),
+
+      /**
+       * @cfg {NGN.DATA.Proxy} proxy
+       * The proxy used to transmit data over a network. This is more commonly
+       * used with the NGN.DATA.Store instead of the Model, but this exists for
+       * situations where a single model instance represents the entire data set,
+       * such as simple user preferences or settings. **This overrides store proxies!**
+       *
+       * If this Model is added to a NGN.DATA.Store and the store has it's own proxy,
+       * this proxy will override it. For example:
+       *
+       * ```js
+       * let myRecord = new NGN.DATA.Model({
+       *   fields: {...},
+       *   proxy: new NGNX.DATA.SomeDatabaseProxy() // <-- NOTICE
+       * })
+       *
+       * let myStore = new NGN.DATA.Store({
+       *   model: myRecord,
+       *   proxy: new NGNX.DATA.SomeOtherProxy() // <-- NOTICE
+       * })
+       *
+       * myStore.add(new myRecord({
+       *   field: value,
+       *   field2: value
+       * }))
+       *
+       * myStore.save() // This executes NGNX.DATA.SomeDatabaseProxy.save()
+       * ```
+       *
+       * This is the **least** efficient way to deal with bulk records. If you are
+       * dealing with multiple records, a proxy should be applied to the NGN.DATA.Store,
+       * not the NGN.DATA.Model.
+       *
+       * A better case for this proxy are independent models representing
+       * key/value stores. For example:
+       *
+       * ```js
+       * let userPreferences = new NGN.DATA.Model({
+       *   fields: {
+       *     alwaysDoThis: Boolean,
+       *     neverDoThat: Boolean
+       *   },
+       *   proxy: new NGNX.DATA.SomeDatabaseProxy()
+       * })
+       *
+       * userPreferences.save()
+       * ```
+       *
+       * Notice this example contains no store, just a model. In this scenario, the model
+       * represents the entire data set, so no store is necessary.
+       */
+      proxy: NGN.private(config.proxy || null)
     })
+
+    // Add proxy support for independent models
+    if (this.proxy) {
+      if (this.proxy instanceof NGN.DATA.Proxy) {
+        this.proxy.init(this)
+      } else {
+        throw new Error('Invalid proxy configuration.')
+      }
+    }
 
     // Make sure there aren't duplicate field names defined (includes joins)
     let allfields = this.datafields.concat(this.virtualdatafields).concat(this.relationships).filter(function (key, i, a) {

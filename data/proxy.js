@@ -58,12 +58,16 @@ class NgnDataProxy extends NGN.EventEmitter {
 
       fetch: NGN.const(function () {
         return me.fetch.apply(store, arguments)
-      }),
-
-      changelog: NGN.get(function () {
-        return me.changelog
       })
     })
+
+    if (store instanceof NGN.DATA.Store) {
+      Object.defineProperties(store, {
+        changelog: NGN.get(function () {
+          return me.changelog
+        })
+      })
+    }
 
     me.store = store
   }
