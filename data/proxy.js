@@ -50,19 +50,8 @@ class NgnDataProxy extends NGN.EventEmitter {
 
   init (store) {
     const me = this
-    const prototype = Object.getOwnPropertyNames(Object.getPrototypeOf(this)).filter((attr) => {
-      return attr.trim().toLowerCase() !== 'constructor' && !store.hasOwnProperty(attr)
-    })
 
-    prototype.forEach(attr => {
-      const cfg = Object.getOwnPropertyDescriptor(this, attr)
-
-      if (cfg === undefined && typeof this[attr] === 'function') {
-        Object.defineProperty(store, attr, NGN.const(function () {
-          return me[attr].apply(this, arguments)
-        }))
-      }
-    })
+    NGN.inherit(this, store)
 
     if (store instanceof NGN.DATA.Store) {
       Object.defineProperties(store, {
