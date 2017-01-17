@@ -281,6 +281,20 @@ Object.defineProperties(NGN, {
       const definition = Object.getOwnPropertyDescriptor(source, attr)
       Object.defineProperty(dest, attr, definition)
     })
+
+    const prototype = Object.getOwnPropertyNames(Object.getPrototypeOf(source)).filter((attr) => {
+      return attr.trim().toLowerCase() !== 'constructor' && !dest.hasOwnProperty(attr)
+    })
+
+    prototype.forEach((attr) => {
+      const cfg = Object.getOwnPropertyDescriptor(source, attr)
+
+      if (cfg === undefined && typeof source[attr] === 'function') {
+        Object.defineProperty(dest, attr, NGN.const(function () {
+          return source[attr].apply(this, arguments)
+        }))
+      }
+    })
   }),
 
   /**
