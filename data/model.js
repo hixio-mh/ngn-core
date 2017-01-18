@@ -464,6 +464,18 @@ class NgnDataModel extends NGN.EventEmitter {
     if (config.hasOwnProperty('expires')) {
       this.expires = config.expires
     }
+
+    // Handle changelog modifications & notify listeners (stores)
+    this.on('changelog.append', (delta) => {
+      delta.id = NGN.DATA.util.GUID()
+      this.changelog.push(delta)
+      this.emit('append.changelog', delta)
+    })
+
+    this.on('changelog.remove', (idList) => {
+      idList = Array.isArray(idList) ? idList : [idList]
+      this.emit('remove.changelog', idList)
+    })
   }
 
   get deleted () {
@@ -687,7 +699,7 @@ class NgnDataModel extends NGN.EventEmitter {
 
   /**
     * @property data
-    * Creates a JSON representation of the data entity. This is
+    * Creates a JSON object from the data entity. This is
     * a record that can be persisted to a database or other data store.
     * @readonly.
     */
@@ -712,6 +724,26 @@ class NgnDataModel extends NGN.EventEmitter {
       })
     }
     return d
+  }
+
+  /**
+   * @property representation
+   * Creates a JSON representation of the record.
+   * Think of this as #data + #virtuals.
+   */
+  get representation () {
+    let data = this.data
+
+    Object.keys(this.virtuals).forEach((attribute) => {
+      let val = this[attribute]
+      if (val instanceof NGN.DATA.Entity || val instanceof NGN.DATA.Store) {
+        data[attribute] = this[attribute].representation
+      } else if (typeof val !== 'function') {
+        data[attribute] = this[attribute]
+      }
+    })
+
+    return data
   }
 
   /**
@@ -1103,7 +1135,7 @@ class NgnDataModel extends NGN.EventEmitter {
             new: me.raw[field]
           }
 
-          this.changelog.push(c)
+          this.emit('changelog.append', c)
           this.emit('field.update', c)
           this.emit('field.update.' + field, c)
 
@@ -1127,7 +1159,7 @@ class NgnDataModel extends NGN.EventEmitter {
           action: 'create',
           field: field
         }
-        this.changelog.push(c)
+        this.emit('changelog.append', c)
         this.emit('field.create', c)
       }
 
@@ -1274,7 +1306,7 @@ class NgnDataModel extends NGN.EventEmitter {
         action: 'create',
         field: name
       }
-      this.changelog.push(c)
+      this.emit('changelog.append', c)
       this.emit('relationship.create', c)
     }
   }
@@ -1461,7 +1493,7 @@ class NgnDataModel extends NGN.EventEmitter {
         value: val
       }
       this.emit('field.remove', c)
-      this.changelog.push(c)
+      this.emit('changelog.append', c)
     }
   }
 
@@ -1497,7 +1529,7 @@ class NgnDataModel extends NGN.EventEmitter {
           old: val,
           join: true
         }
-        this.changelog.push(c)
+        this.emit('changelog.append', c)
         this.emit('relationship.remove', c)
       }
     }
@@ -1513,8 +1545,7 @@ class NgnDataModel extends NGN.EventEmitter {
    * @param {number} [OperationCount=1]
    * The number of operations to "undo". Defaults to a single operation.
    */
-  undo (back) {
-    back = back || 1
+  undo (back = 1) {
     let old = this.changelog.splice(this.changelog.length - back, back)
     const me = this
 
@@ -1544,6 +1575,10 @@ class NgnDataModel extends NGN.EventEmitter {
         }
       }
     })
+
+    this.emit('changelog.remove', old.map((item) => {
+      return item.id
+    }))
   }
 
   /**

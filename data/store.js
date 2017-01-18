@@ -179,7 +179,16 @@ class NgnDataStore extends NGN.EventEmitter {
        * Attempting to remove a record below the store's minimum will throw
        * an error.
        */
-      minRecords: NGN.private(NGN.coalesce(cfg.minRecords, 0))
+      minRecords: NGN.private(NGN.coalesce(cfg.minRecords, 0)),
+
+      /*
+       * @property {array} changelog
+       * An ordered array of changes made to the store.
+       * This cannot be changed manually. Instead, use #history
+       * and #undo to manage this list.
+       * @private
+       */
+      // changelog: NGN.private([])
     })
 
     if (this.lifo > 0 && this.fifo > 0) {
@@ -239,6 +248,18 @@ class NgnDataStore extends NGN.EventEmitter {
   }
 
   /**
+   * @property history
+   * The history of the entity (i.e. changelog).The history
+   * is shown from most recent to oldest change. Keep in mind that
+   * some actions, such as adding new custom fields on the fly, may
+   * be triggered before other updates.
+   * @returns {array}
+   */
+  get history () {
+    return this.changelog.reverse()
+  }
+
+  /**
    * @property {array} data
    * The complete and unfiltered raw underlying dataset. This data
    * is usually persisted to a database.
@@ -247,6 +268,17 @@ class NgnDataStore extends NGN.EventEmitter {
   get data () {
     return this._data.map(function (d) {
       return d.data
+    })
+  }
+
+  /**
+   * @property {array} representation
+   * The complete and unfiltered underlying representation dataset
+   * (data + virtuals of each model).
+   */
+  get representation () {
+    return this._data.map(function (d) {
+      return d.representation
     })
   }
 
@@ -523,6 +555,16 @@ class NgnDataStore extends NGN.EventEmitter {
         }
       }
     })
+
+    // record.on('append.changelog', (delta) => {
+    //   this.changelog.push(delta)
+    // })
+    //
+    // record.on('remove.changelog', (idList) => {
+    //   this.changelog = this.changelog.filter((item) => {
+    //     return idList.indexOf(item.id) < 0
+    //   })
+    // })
   }
 
   /**
