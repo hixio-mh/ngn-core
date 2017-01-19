@@ -189,6 +189,13 @@ class NgnDataStore extends NGN.EventEmitter {
        * @private
        */
       // changelog: NGN.private([])
+
+      /**
+       * @property snapshotarchive
+       * Contains snapshots.
+       * @private
+       */
+      snapshotarchive: NGN.private(null)
     })
 
     if (this.lifo > 0 && this.fifo > 0) {
@@ -245,6 +252,16 @@ class NgnDataStore extends NGN.EventEmitter {
         throw new Error('Invalid proxy configuration.')
       }
     }
+  }
+
+  /**
+   * @property {array} snapshots
+   * Contains the data snapshot of the entire store.
+   * @readonly
+   * @private
+   */
+  get snapshots () {
+    return NGN.coalesce(this.snapshotarchive, [])
   }
 
   /**
@@ -1550,6 +1567,56 @@ class NgnDataStore extends NGN.EventEmitter {
     this._data.forEach((record, index) => {
       this.applyIndices(record, index)
     })
+  }
+
+  /**
+   * @method snapshot
+   * Add a snapshot of the current store to the #snapshot archive.
+   * This can potentially be a computationally/memory-expensive operation.
+   * The method creates a copy of all data in the store along with checksums
+   * of each element and holds the snapshot in RAM. Large stores may consume
+   * large amounts of RAM until the snapshots are released/cleared.
+   * Snapshots are most commonly used with data proxies to calculate
+   * differences in a data set before persisting them to a database.
+   * @returns {object}
+   * Returns an object containing the following fields:
+   *
+   * ```js
+   * {
+   *   timestamp: 'ex: 2017-01-19T16:43:03.279Z',
+   *   checksum: 'snapshotchecksum',
+   *   modelChecksums: [
+   *     'record1_checksum',
+   *     'record2_checksum'
+   *   ],
+   *   data: { ... } // Actual data at the time of the snapshot
+   * }
+   * ```
+   */
+  snapshot () {
+    this.snapshotarchive = NGN.coalesce(this.snapshotarchive, [])
+
+    let dataset = {
+      timestamp: (new Date()).toJSON(),
+      checksum: NGN.DATA.util.checksum(JSON.stringify(this.data)).toString(),
+      modelChecksums: this.data.map((item) => {
+        return NGN.DATA.util.checksum(JSON.stringify(item)).toString()
+      }),
+      data: this.data
+    }
+
+    this.snapshotarchive.unshift(dataset)
+    this.emit('snapshot', dataset)
+
+    return dataset
+  }
+
+  /**
+   * @method clearSnapshots
+   * Remove all archived snapshots.
+   */
+  clearSnapshots () {
+    this.snapshotarchive = null
   }
 }
 
