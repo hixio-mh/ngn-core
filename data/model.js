@@ -1247,6 +1247,10 @@ class NgnDataModel extends NGN.EventEmitter {
     cfg.required = NGN.coalesce(cfg.required, true)
     cfg.default = cfg.default || null
 
+    if (!this.joins.hasOwnProperty(name)) {
+      this.joins[name] = cfg
+    }
+
     const me = this
     let entityType = 'model'
 
