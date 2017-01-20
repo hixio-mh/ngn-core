@@ -1089,7 +1089,7 @@ class NgnDataModel extends NGN.EventEmitter {
       }
 
       // Create the data field as an object attribute & getter/setter
-      me.fields[field] = cfg || me.fields[field] || {}
+      me.fields[field] = NGN.coalesce(cfg, fieldcfg, me.fields[field], {})
       me.fields[field].required = NGN.coalesce(me.fields[field].required, false)
 
       if (!me.fields[field].hasOwnProperty('type')) {
