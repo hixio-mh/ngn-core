@@ -1536,6 +1536,21 @@ class NgnDataModel extends NGN.EventEmitter {
   }
 
   /**
+   * @method setSilent
+   * A method to set a field value without triggering an update event.
+   * This is designed primarily for use with live update proxies to prevent
+   * endless event loops.
+   * @param {string} fieldname
+   * The name of the #field to update.
+   * @param {any} value
+   * The new value of the field.
+   * @private
+   */
+  setSilent (fieldname, value) {
+    this.raw[fieldname] = value
+  }
+
+  /**
    * @method undo
    * A rollback function to undo changes. This operation affects
    * the changelog. It is possible to undo an undo (i.e. redo).
