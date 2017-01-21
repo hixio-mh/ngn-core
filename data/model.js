@@ -1551,6 +1551,11 @@ class NgnDataModel extends NGN.EventEmitter {
    * @private
    */
   setSilent (fieldname, value) {
+    if (fieldname === this.idAttribute) {
+      this.id = value
+      return
+    }
+
     this.raw[fieldname] = value
   }
 
