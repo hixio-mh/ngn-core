@@ -44,24 +44,30 @@ class NgnDataProxy extends NGN.EventEmitter {
        * are ignored). This sets an `Authorization: Bearer <token>`
        * HTTP header.
        */
-      token: NGN.public(config.token || null)
+      token: NGN.public(config.token || null),
+
+      /**
+       * @property {string} proxytype
+       * The type of underlying data (model or store).
+       * @private
+       */
+      type: NGN.private(null)
     })
   }
 
   init (store) {
-    const me = this
-
     NGN.inherit(this, store)
 
     if (store instanceof NGN.DATA.Store) {
       Object.defineProperties(store, {
-        changelog: NGN.get(function () {
-          return me.changelog
+        changelog: NGN.get(() => {
+          return this.changelog
         })
       })
     }
 
-    me.store = store
+    this.store = store
+    this.type = store instanceof NGN.DATA.Store ? 'store' : 'model'
   }
 
   /**
