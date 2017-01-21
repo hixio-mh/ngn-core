@@ -44,7 +44,7 @@ class NgnDataStore extends NGN.EventEmitter {
        * @cfg {NGN.DATA.Proxy} proxy
        * The proxy used to transmit data over a network.
        */
-      proxy: NGN.private(cfg.proxy || null),
+      _proxy: NGN.private(cfg.proxy || null),
 
       /**
        * @cfg {boolean} [allowDuplicates=true]
@@ -251,6 +251,17 @@ class NgnDataStore extends NGN.EventEmitter {
       } else {
         throw new Error('Invalid proxy configuration.')
       }
+    }
+  }
+
+  get proxy () {
+    return this._proxy
+  }
+
+  set proxy (value) {
+    if (!this._proxy && value instanceof NGN.DATA.Proxy) {
+      this._proxy = value
+      this._proxy.init(this)
     }
   }
 

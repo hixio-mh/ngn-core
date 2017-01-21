@@ -381,7 +381,7 @@ class NgnDataModel extends NGN.EventEmitter {
        * Notice this example contains no store, just a model. In this scenario, the model
        * represents the entire data set, so no store is necessary.
        */
-      proxy: NGN.private(config.proxy || null)
+      _proxy: NGN.private(config.proxy || null)
     })
 
     // Add proxy support for independent models
@@ -476,6 +476,17 @@ class NgnDataModel extends NGN.EventEmitter {
       idList = Array.isArray(idList) ? idList : [idList]
       this.emit('remove.changelog', idList)
     })
+  }
+
+  get proxy () {
+    return this._proxy
+  }
+
+  set proxy (value) {
+    if (!this._proxy && value instanceof NGN.DATA.Proxy) {
+      this._proxy = value
+      this._proxy.init(this)
+    }
   }
 
   get deleted () {

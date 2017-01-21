@@ -92,8 +92,7 @@ class NgnDataProxy extends NGN.EventEmitter {
   get changelog () {
     const me = this
 
-    if (this.store === null) {
-      console.warn('Proxy was not initialized.')
+    if (this.store === null && !(this instanceof NGN.DATA.Store)) {
       return []
     }
 
