@@ -115,7 +115,8 @@ NGN.inherit(Object.defineProperties({}, {
   forward: NGN.const(function (eventName, triggers, payload) {
     triggers = typeof triggers === 'string' ? [triggers] : triggers
 
-    let listener = () => {
+    let me = this
+    let listener = function () {
       let args = NGN.slice(arguments)
 
       if (payload) {
@@ -125,7 +126,7 @@ NGN.inherit(Object.defineProperties({}, {
       for (let trigger in triggers) {
         let argList = args.slice()
         argList.unshift(triggers[trigger])
-        this.emit.apply(this, argList)
+        me.emit.apply(me, argList)
       }
     }
 
