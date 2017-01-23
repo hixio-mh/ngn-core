@@ -510,5 +510,18 @@ Object.defineProperties(NGN, {
    * ```
    * @private
    */
-  css: NGN.privateconst('font-weight: bold;')
+  css: NGN.privateconst('font-weight: bold;'),
+
+  /**
+   * @method isFn
+   * A shortcut method for determining if a variable is a function.
+   * This is useful for identifying the existance of callback methods.
+   * @param {any} variable
+   * The variable to identify as a function.
+   * @returns {boolean}
+   * @private
+   */
+  isFn: NGN.privateconst(function (v) {
+    return typeof v === 'function'
+  })
 })
