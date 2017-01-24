@@ -38,6 +38,8 @@ NGN.inherit(Object.defineProperties({}, {
       if (typeof group[eventName] === 'function') {
         this.setMaxListeners(this.getMaxListeners() + 1)
         pool[eventName] = this.on(topic, group[eventName])
+      } else if (typeof group[eventName] === 'object') {
+        this.pool(topic + '.', group[eventName])
       } else {
         console.warn('%c' + topic + '%c could not be pooled in the event emitter because it\'s value is not a function.', NGN.css, '')
       }
