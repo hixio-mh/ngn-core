@@ -19,6 +19,21 @@ NGN.inherit(Object.defineProperties({}, {
    * @property {Object} subscriberObject
    * A key:value object where the key is the name of the
    * unprefixed event and the key is the handler function.
+   * A value can be an object, allowing for nesting events. For example:
+   *
+   * ```js
+   * NGN.BUS.on('prefix.', {
+   *   deep: {
+   *     nested: {
+   *       eventName: function () {
+   *         console.log('event triggered')
+   *       }
+   *     }
+   *   }
+   * })
+   *
+   * NGN.BUS.emit('prefix.deep.nested.eventName') // <-- Outputs "event triggered"
+   * ```
    * @property {Function} [callback]
    * A callback to run after the entire pool is registered. Receives
    * a single {Object} argument containing all of the subscribers for
