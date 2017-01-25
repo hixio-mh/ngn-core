@@ -260,7 +260,7 @@ NGN.inherit(Object.defineProperties({}, {
 
   /**
    * @method queue
-   * Replaced by #emitDelay.
+   * Replaced by #delayEmit.
    * @deprecated
    */
   queue: NGN.privateconst(function () {
