@@ -288,10 +288,7 @@ Object.defineProperties(NGN, {
       return attr.trim().toLowerCase() !== 'constructor' && !dest.hasOwnProperty(attr)
     })
 
-    console.log('>>>>', Object.getOwnPropertySymbols(Object.getPrototypeOf(source)))
-
     prototype.forEach((attr) => {
-      console.log('>>>>]]]', attr)
       const cfg = Object.getOwnPropertyDescriptor(source, attr)
 
       if (cfg === undefined && typeof source[attr] === 'function') {
