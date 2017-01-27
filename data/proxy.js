@@ -20,33 +20,6 @@ class NgnDataProxy extends NGN.EventEmitter {
       store: NGN.private(null),
 
       /**
-       * @configproperty {string} [url=http://localhost
-       * The root URL for making network requests (HTTP/WS/TLS).
-       */
-      url: NGN.public(config.url || 'http://localhost'),
-
-      /**
-       * @config {string} username
-       * If using basic authentication, provide this as the username.
-       */
-      username: NGN.public(config.username || null),
-
-      /**
-       * @config {string} password
-       * If using basic authentication, provide this as the password.
-       */
-      password: NGN.public(config.password || null),
-
-      /**
-       * @config {string} token
-       * If using an access token, provide this as the value. This
-       * will override basic authentication (#username and #password
-       * are ignored). This sets an `Authorization: Bearer <token>`
-       * HTTP header.
-       */
-      token: NGN.public(config.token || null),
-
-      /**
        * @property {string} proxytype
        * The type of underlying data (model or store).
        * @private
@@ -125,5 +98,5 @@ class NgnDataProxy extends NGN.EventEmitter {
   }
 }
 
-NGN.DATA.Proxy = NgnDataProxy
-// Object.defineProperty(NGN.DATA, 'Proxy', NGN.const(NgnDataProxy))
+// NGN.DATA.Proxy = NgnDataProxy
+Object.defineProperty(NGN.DATA, 'Proxy', NGN.const(NgnDataProxy))

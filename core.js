@@ -275,8 +275,10 @@ Object.defineProperties(NGN, {
     if (!source || !dest) {
       return
     }
+
     source = typeof source === 'function' ? source.prototype : source
     dest = typeof dest === 'function' ? dest.prototype : dest
+
     Object.getOwnPropertyNames(source).forEach(function (attr) {
       const definition = Object.getOwnPropertyDescriptor(source, attr)
       Object.defineProperty(dest, attr, definition)
@@ -286,7 +288,10 @@ Object.defineProperties(NGN, {
       return attr.trim().toLowerCase() !== 'constructor' && !dest.hasOwnProperty(attr)
     })
 
+    console.log('>>>>', Object.getOwnPropertySymbols(Object.getPrototypeOf(source)))
+
     prototype.forEach((attr) => {
+      console.log('>>>>]]]', attr)
       const cfg = Object.getOwnPropertyDescriptor(source, attr)
 
       if (cfg === undefined && typeof source[attr] === 'function') {
