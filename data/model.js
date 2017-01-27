@@ -385,9 +385,9 @@ class NgnDataModel extends NGN.EventEmitter {
     })
 
     // Add proxy support for independent models
-    if (this.proxy) {
-      if (this.proxy instanceof NGN.DATA.Proxy) {
-        this.proxy.init(this)
+    if (config.proxy) {
+      if (this._proxy instanceof NGN.DATA.Proxy) {
+        this._proxy.init(this)
       } else {
         throw new Error('Invalid proxy configuration.')
       }

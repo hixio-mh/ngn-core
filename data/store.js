@@ -246,8 +246,8 @@ class NgnDataStore extends NGN.EventEmitter {
     }
 
     if (cfg.proxy) {
-      if (cfg.proxy instanceof NGN.DATA.Proxy) {
-        this.proxy.init(this)
+      if (this._proxy instanceof NGN.DATA.Proxy) {
+        this._proxy.init(this)
       } else {
         throw new Error('Invalid proxy configuration.')
       }

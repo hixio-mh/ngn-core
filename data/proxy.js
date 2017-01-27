@@ -19,17 +19,19 @@ class NgnDataProxy extends NGN.EventEmitter {
        */
       store: NGN.private(null),
 
-      /**
-       * @property {string} proxytype
-       * The type of underlying data (model or store).
-       * @private
-       */
-      type: NGN.private(null)
+      initialized: NGN.private(false),
+      liveSyncEnabled: NGN.private(false)
     })
   }
 
   init (store) {
-    NGN.inherit(this, store)
+    if (this.initialized) {
+      return
+    } else {
+      this.initialized = true
+    }
+
+    this.store = store
 
     if (store instanceof NGN.DATA.Store) {
       Object.defineProperties(store, {
@@ -38,9 +40,15 @@ class NgnDataProxy extends NGN.EventEmitter {
         })
       })
     }
+  }
 
-    this.store = store
-    this.type = store instanceof NGN.DATA.Store ? 'store' : 'model'
+  /**
+   * @property {string} proxytype
+   * The type of underlying data (model or store).
+   * @private
+   */
+  get type () {
+    return this.store instanceof NGN.DATA.Store ? 'store' : 'model'
   }
 
   /**
@@ -95,6 +103,57 @@ class NgnDataProxy extends NGN.EventEmitter {
 
   fetch () {
     console.warn('Fetch should be overridden by a proxy implementation class.')
+  }
+
+  /**
+   * @method enableLiveSync
+   * Live synchronization monitors the dataset for changes and immediately
+   * commits them to the data storage system.
+   * @fires live.create
+   * Triggered when a new record is persisted to the data store.
+   * @fires live.update
+   * Triggered when a record modification is persisted to the data store.
+   * @fires live.delete
+   * Triggered when a record is removed from the data store.
+   */
+  enableLiveSync () {
+    if (this.liveSyncEnabled) {
+      return
+    }
+
+    this.liveSyncEnabled = true
+
+    if (this.type === 'model') {
+      // Basic CRUD (-R)
+      this.store.on('field.create', this.saveAndEmit('live.create'))
+      this.store.on('field.update', this.saveAndEmit('live.update'))
+      this.store.on('field.remove', this.saveAndEmit('live.delete'))
+
+      // relationship.create is unncessary because no data is available
+      // when a relationship is created. All related data will trigger a
+      // `field.update` event.
+      this.store.on('relationship.remove', this.saveAndEmit('live.delete'))
+    } else {
+      // Persist new records
+      this.store.on('record.create', this.saveAndEmit('live.create'))
+      this.store.on('record.restored', this.saveAndEmit('live.create'))
+
+      // Update existing records
+      this.store.on('record.update', this.saveAndEmit('live.update'))
+
+      // Remove old records
+      this.store.on('record.delete', this.saveAndEmit('live.delete'))
+      this.store.on('clear', this.saveAndEmit('live.delete'))
+    }
+  }
+
+  saveAndEmit (eventName) {
+    return (record) => {
+      this.save(() => {
+        this.emit(eventName, record || null)
+        this.store.emit(eventName, record || null)
+      })
+    }
   }
 }
 
