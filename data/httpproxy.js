@@ -48,4 +48,5 @@ class NgnHttpProxy extends NGN.DATA.Proxy {
   }
 }
 
-Object.defineProperty(NGN.DATA, 'HttpProxy', NGN.const(NgnHttpProxy))
+NGN.DATA.HttpProxy = NgnHttpProxy
+// Object.defineProperty(NGN.DATA, 'HttpProxy', NGN.const(NgnHttpProxy))

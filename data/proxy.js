@@ -157,5 +157,5 @@ class NgnDataProxy extends NGN.EventEmitter {
   }
 }
 
-// NGN.DATA.Proxy = NgnDataProxy
-Object.defineProperty(NGN.DATA, 'Proxy', NGN.const(NgnDataProxy))
+NGN.DATA.Proxy = NgnDataProxy
+// Object.defineProperty(NGN.DATA, 'Proxy', NGN.const(NgnDataProxy))
