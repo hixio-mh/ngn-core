@@ -446,7 +446,8 @@ class NgnDataModel extends NGN.EventEmitter {
       'relationship.create',
       'relationship.remove',
       'expired',
-      'deleted'
+      'deleted',
+      'reset'
     ]
 
     if (NGN.BUS) {
@@ -1646,9 +1647,6 @@ class NgnDataModel extends NGN.EventEmitter {
           me.id = data[key]
         }
       } else if (me.joins.hasOwnProperty(key)) {
-        // let tmp = new me.getRelated(key).type() // eslint-disable-line new-cap
-        // tmp.load(data[key])
-        // me.rawjoin[key] = tmp
         me.rawjoins[key].load(data[key])
       } else {
         try {

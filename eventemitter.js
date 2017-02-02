@@ -10,6 +10,34 @@ NGN.inherit(Object.defineProperties({}, {
   thresholdQueue: NGN.private({}),
 
   /**
+   * @method deprecate
+   * Provides a deprecation notice for the specified event.
+   * Automatically emits the appropriate "replacement" event
+   * if a replacement event is configured. If no replacement
+   * event is configured, the deprecation notice will be written
+   * to the console but no replacement event will be triggered.
+   * @param {string} deprecatedEventName
+   * The name of the deprecated event.
+   * @param {string} [replacementEventName]
+   * The name of the new event.
+   */
+  deprecate: NGN.const((deprecatedEventName, replacementEventName) => {
+    const me = this
+
+    this.on(deprecatedEventName, function () {
+      console.warn(deprecatedEventName + ' is deprecated.' + (!replacementEventName ? '' : 'Use ' + replacementEventName + ' instead.'))
+
+      if (replacementEventName) {
+        let args = NGN.slice(arguments)
+        args.shift()
+        args.unshift(replacementEventName)
+
+        me.emit.apply(me, args)
+      }
+    })
+  }),
+
+  /**
    * @method pool
    * A helper command to create multiple related subscribers
    * all at once. This is a convenience function.
@@ -269,8 +297,8 @@ NGN.inherit(Object.defineProperties({}, {
   }),
 
   /**
-   * @method chain
-   * Emit an event after a chain of unique events have all fired.
+   * @method funnel
+   * Emit an event after a collection of unique events have all fired.
    * This can be useful in situations where multiple asynchronous actions
    * must complete before another begins. For example, blending 3
    * remote data sources from different API's into a single resultset
@@ -278,7 +306,7 @@ NGN.inherit(Object.defineProperties({}, {
    *
    * **Example**
    * ```js
-   * let collection = NGN.BUS.chain(['download1done', 'download2done', 'download3done'], 'make.results')
+   * let collection = NGN.BUS.funnel(['download1done', 'download2done', 'download3done'], 'make.results')
    *
    * let allData = []
    *
@@ -330,7 +358,7 @@ NGN.inherit(Object.defineProperties({}, {
    * }
    * ```
    */
-  chain: NGN.const(function (eventCollection, triggerEventName, payload = null) {
+  funnel: NGN.const(function (eventCollection, triggerEventName, payload = null) {
     if (!Array.isArray(eventCollection)) {
       throw new Error('NGN.BUS.bindEvents expected an array of events, but received a(n) ' + typeof eventCollection)
     }
@@ -418,10 +446,10 @@ NGN.inherit(Object.defineProperties({}, {
   }),
 
   /**
-   * @method chainOnce
-   * This provides the same functionality as #chain, but
+   * @method funnelOnce
+   * This provides the same functionality as #funnel, but
    * removes the listener after the resultant event has fired.
-   * See #chain for detailed usage.
+   * See #funnel for detailed usage.
    * @param {array} eventCollection
    * An array of events. Once _all_ of these events have fired,
    * the triggerEventName will be fired.
@@ -432,8 +460,8 @@ NGN.inherit(Object.defineProperties({}, {
    * @returns {object} collection
    * Provides the key/value configuration of the collection.
    */
-  chainOnce: NGN.const(function (eventCollection, triggerEventName, payload = null) {
-    let collection = this.chain(eventCollection, triggerEventName, payload)
+  funnelOnce: NGN.const(function (eventCollection, triggerEventName, payload = null) {
+    let collection = this.funnel(eventCollection, triggerEventName, payload)
 
     this.setMaxListeners(this.getMaxListeners() + 1)
     this.once(triggerEventName, () => {
