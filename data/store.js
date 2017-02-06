@@ -294,8 +294,8 @@ class NgnDataStore extends NGN.EventEmitter {
    * @readonly
    */
   get data () {
-    return this._data.map(function (d) {
-      return d.data
+    return this._data.map(function (record) {
+      return record.data
     })
   }
 
@@ -305,8 +305,8 @@ class NgnDataStore extends NGN.EventEmitter {
    * (data + virtuals of each model).
    */
   get representation () {
-    return this._data.map(function (d) {
-      return d.representation
+    return this._data.map((record) => {
+      return record.representation
     })
   }
 

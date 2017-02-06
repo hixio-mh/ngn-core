@@ -746,6 +746,12 @@ class NgnDataModel extends NGN.EventEmitter {
   get representation () {
     let data = this.data
 
+    // Add relationships
+    Object.keys(this.rawjoins).forEach((join) => {
+      data[join] = this.rawjoins[join].representation
+    })
+
+    // Add virtual fields
     Object.keys(this.virtuals).forEach((attribute) => {
       let val = this[attribute]
       if (val instanceof NGN.DATA.Entity || val instanceof NGN.DATA.Store) {
@@ -1322,6 +1328,7 @@ class NgnDataModel extends NGN.EventEmitter {
         action: 'create',
         field: name
       }
+
       this.emit('changelog.append', c)
       this.emit('relationship.create', c)
     }
@@ -1412,7 +1419,7 @@ class NgnDataModel extends NGN.EventEmitter {
       return
     }
 
-    if (this.rawjoins[name].hasOwnProperty('proxy')) {
+    if (this.rawjoins[name] instanceof NGN.DATA.Store) { //this.rawjoins[name].hasOwnProperty('proxy')
       const me = this
 
       this.rawjoins[name].on('record.create', function (record) {
