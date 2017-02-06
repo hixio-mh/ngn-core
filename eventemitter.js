@@ -22,7 +22,9 @@ NGN.inherit(Object.defineProperties({}, {
    * The name of the new event.
    */
   deprecate: NGN.const((deprecatedEventName, replacementEventName) => {
-    this.on(deprecatedEventName, () => {
+    const me = this
+
+    this.on(deprecatedEventName, function () {
       console.warn(deprecatedEventName + ' is deprecated.' + (!replacementEventName ? '' : 'Use ' + replacementEventName + ' instead.'))
 
       if (replacementEventName) {
@@ -30,7 +32,7 @@ NGN.inherit(Object.defineProperties({}, {
         args.shift()
         args.unshift(replacementEventName)
 
-        this.emit.apply(this, args)
+        me.emit.apply(me, args)
       }
     })
   }),
