@@ -20,8 +20,6 @@ class NgnDataModel extends NGN.EventEmitter {
 
     super()
 
-    const me = this
-
     Object.defineProperties(this, {
       /**
        * @cfg {String} [idAttribute='id']
@@ -59,6 +57,16 @@ class NgnDataModel extends NGN.EventEmitter {
           }
         }
       ),
+
+      /**
+       * @cfg {object} metaFields
+       * Meta fields are configured exactly the same way as #fields,
+       * except they're "hidden". They are explicity excluded from #data,
+       * #representation, #relationships, and any other type of data.
+       * However; these fields can be referenced by data proxies, #virtuals,
+       * or extensions to the NGN.DATA.Model class.
+       */
+      hiddenFields: NGN.private(NGN.coalesce(config.metaFields)),
 
       /**
        * @cfg {object|NGN.DATA.Model|NGN.DATA.Store} relationships
@@ -287,8 +295,8 @@ class NgnDataModel extends NGN.EventEmitter {
           return valid.indexOf(value) >= 0
         },
 
-        required: function (field, value) {
-          return me.hasOwnProperty(field) && me[value] !== null
+        required: (field, value) => {
+          return this.hasOwnProperty(field) && this[value] !== null
         }
       }),
 
@@ -384,6 +392,11 @@ class NgnDataModel extends NGN.EventEmitter {
       _proxy: NGN.private(config.proxy || null)
     })
 
+    // Make sure the ID field exists.
+    if (NGN.coalesce(this.idAttribute, '') !== 'id' && !this.fields.hasOwnProperty(this.idAttribute)) {
+      console.warn(this.idAttribute + ' is specified as the ID, but it is not defined in the fields.')
+    }
+
     // Add proxy support for independent models
     if (config.proxy) {
       if (this._proxy instanceof NGN.DATA.Proxy) {
@@ -412,28 +425,36 @@ class NgnDataModel extends NGN.EventEmitter {
     }
 
     // Add fields
-    Object.keys(this.fields).forEach(function (field) {
-      if (typeof me.fields[field] !== 'object' && me.fields[field] !== null) {
-        me.fields[field] = {
+    Object.keys(this.fields).forEach((field) => {
+      if (typeof this.fields[field] !== 'object' && this.fields[field] !== null) {
+        this.fields[field] = {
           required: true,
-          type: me.fields[field],
+          type: this.fields[field],
           default: null,
           name: field
         }
       }
-      me.addField(field, true)
+
+      this.addField(field, NGN.coalesce(this.fields[field], null))
     })
 
+    // Add meta/hidden fields
+    if (this.hiddenFields) {
+      Object.keys(this.hiddenFields).forEach((field) => {
+        this.addMetaField(field, NGN.coalesce(this.hiddenFields[field], null), true)
+      })
+    }
+
     // Add virtuals
-    Object.keys(this.virtuals).forEach(function (v) {
-      Object.defineProperty(me, v, NGN.get(function () {
-        return me.virtuals[v].apply(me)
+    Object.keys(this.virtuals).forEach((v) => {
+      Object.defineProperty(this, v, NGN.get(() => {
+        return this.virtuals[v].apply(this)
       }))
     })
 
     // Add relationships
-    Object.keys(this.joins).forEach(function (field) {
-      me.addRelationshipField(field, me.joins[field], true)
+    Object.keys(this.joins).forEach((field) => {
+      this.addRelationshipField(field, this.joins[field], true)
     })
 
     let events = [
@@ -451,10 +472,10 @@ class NgnDataModel extends NGN.EventEmitter {
     ]
 
     if (NGN.BUS) {
-      events.forEach(function (eventName) {
-        me.on(eventName, function () {
+      events.forEach((eventName) => {
+        this.on(eventName, function () {
           let args = NGN.slice(arguments)
-          args.push(me)
+          args.push(this)
           args.unshift(eventName)
           NGN.BUS.emit.apply(NGN.BUS, args)
         })
@@ -651,7 +672,15 @@ class NgnDataModel extends NGN.EventEmitter {
    * @returns {String[]}
    */
   get datafields () {
-    return Object.keys(this.fields)
+    if (!this.hiddenFields) {
+      return Object.keys(this.fields)
+    }
+
+    let hidden = NGN.coalesce(this.hiddenFields, {})
+
+    return Object.keys(this.fields).filter((fieldname) => {
+      return !hidden.hasOwnProperty(fieldname)
+    })
   }
 
   /**
@@ -717,9 +746,11 @@ class NgnDataModel extends NGN.EventEmitter {
     */
   get data () {
     let d = this.serialize()
+
     if (!d.hasOwnProperty(this.idAttribute) && this.autoid) {
       d[this.idAttribute] = this[this.idAttribute]
     }
+
     if (this.dataMap) {
       const me = this
       // Loop through the map keys
@@ -735,6 +766,7 @@ class NgnDataModel extends NGN.EventEmitter {
         }
       })
     }
+
     return d
   }
 
@@ -1006,6 +1038,40 @@ class NgnDataModel extends NGN.EventEmitter {
   }
 
   /**
+   * @method hasMetaField
+   * Indicates a metadata (hidden) field exists.
+   * @param {String} fieldname
+   * The name of the data field.
+   * @returns {Boolean}
+   */
+  hasMetaField (fieldname) {
+    return this.getDataField(fieldname).hidden
+  }
+
+  /**
+   * @method has
+   * Indicates an attribute exists. This is a generic method
+   * that checks the data fields, relationships, virtuals (optional),
+   * and ID attribute.
+   * @param {string} attribute
+   * The name of the attribute.
+   * @param {boolean} [includeVirtuals=true]
+   * Specify `true` to check the virtuals as well.
+   * @returns {boolean}
+   */
+  has (attribute, includeVirtuals = true) {
+    if (this.idAttribute === attribute || this.hasDataField(attribute) || this.hasRelationship(attribute)) {
+      return true
+    }
+
+    if (includeVirtuals && this.hasVirtualField(attribute)) {
+      return true
+    }
+
+    return false
+  }
+
+  /**
     * @method serialize
     * Creates a JSON data object with no functions. Only uses enumerable attributes of the object by default.
     * Specific data values can be included/excluded using #enumerableProperties & #nonEnumerableProperties.
@@ -1017,16 +1083,19 @@ class NgnDataModel extends NGN.EventEmitter {
     * The model itself can be returned using #getXRef.
     * @param {Object} [obj]
     * Defaults to this object.
+    * @param {Boolean} [ignoreID=false]
+    * Do not include the ID attribute in the serialized output.
     * @protected
     */
-  serialize (obj) {
+  serialize (obj, ignoreID = false) {
     let _obj = obj || this.raw
     let rtn = {}
 
     for (let key in _obj) {
       _obj.nonEnumerableProperties = _obj.nonEnumerableProperties || ''
-      if (this.fields.hasOwnProperty(key)) {
+      if (this.fields.hasOwnProperty(key) && !this.hasMetaField(key)) {
         key = key === 'id' ? this.idAttribute : key
+
         if ((_obj.hasOwnProperty(key) && (_obj.nonEnumerableProperties.indexOf(key) < 0 && /^[a-z0-9 ]$/.test(key.substr(0, 1)))) || (_obj[key] !== undefined && _obj.enumerableProperties.indexOf(key) >= 0)) {
           let dsc = Object.getOwnPropertyDescriptor(_obj, key)
           if (!dsc.set) {
@@ -1062,6 +1131,11 @@ class NgnDataModel extends NGN.EventEmitter {
       rtn[r] = me.rawjoins[r].data
     })
 
+    // Remove invalid ID
+    if ((rtn.hasOwnProperty(this.idAttribute) && ignoreID) || (rtn.hasOwnProperty(this.idAttribute) && rtn[this.idAttribute] === undefined)) {
+      delete rtn[this.idAttribute]
+    }
+
     return rtn
   }
 
@@ -1075,12 +1149,12 @@ class NgnDataModel extends NGN.EventEmitter {
    * @param {boolean} [suppressEvents=false]
    * Set to `true` to prevent events from firing when the field is added.
    */
-  addField (field, fieldcfg, suppressEvents) {
+  addField (field, fieldcfg = null, suppressEvents = false) {
     if (typeof fieldcfg === 'boolean') {
       suppressEvents = fieldcfg
       fieldcfg = null
     }
-    suppressEvents = suppressEvents !== undefined ? suppressEvents : false
+
     const me = this
     let cfg = null
 
@@ -1100,6 +1174,7 @@ class NgnDataModel extends NGN.EventEmitter {
           const source = NGN.stack.pop()
           console.warn('%c' + field + '%c data field defined multiple times (at %c' + source.path + '%c). Only the last defintion will be used.', NGN.css, '', NGN.css, '')
         } catch (e) {
+          console.log(field, e)
           console.warn('%c' + field + '%c data field defined multiple times. Only the last definition will be used.', NGN.css, '', NGN.css, '')
         }
 
@@ -1124,6 +1199,7 @@ class NgnDataModel extends NGN.EventEmitter {
       } else {
         me.fields[field]['default'] = me.fields[field]['default'] || null
       }
+      me.fields[field].hidden = NGN.coalesce(me.fields[field].hidden, false)
       me.raw[field] = me.fields[field]['default']
       me[field] = me.raw[field]
 
@@ -1213,6 +1289,25 @@ class NgnDataModel extends NGN.EventEmitter {
       }
     } else if (me.id === null && me.autoid) {
       me.id = NGN.DATA.util.GUID()
+    }
+  }
+
+  /**
+   * @method addMetaField
+   * Add a metadata/hidden field.
+   * @param {string} fieldname
+   * The name of the field.
+   * @param {object} [fieldConfiguration=null]
+   * The field configuration (see cfg#fields for syntax).
+   * @param {boolean} [suppressEvents=false]
+   * Set to `true` to prevent events from firing when the field is added.
+   */
+  addMetaField (fieldname, fieldcfg = null) {
+    if (!this.has(fieldname)) {
+      this.hiddenFields = NGN.coalesce(this.hiddenFields, {})
+      this.hiddenFields[fieldname] = fieldcfg
+      this.addField.apply(this, arguments)
+      this.fields[fieldname].hidden = true
     }
   }
 
@@ -1559,6 +1654,17 @@ class NgnDataModel extends NGN.EventEmitter {
   }
 
   /**
+   * @method hasVirtualField
+   * Determines whether a virtual field is available.
+   * @param {string} fieldname
+   * The name of the virtual field to check for.
+   * @returns {boolean}
+   */
+  hasVirtualField (fieldname) {
+    return this.virtuals.hasOwnProperty(fieldname)
+  }
+
+  /**
    * @method setSilent
    * A method to set a field value without triggering an update event.
    * This is designed primarily for use with live update proxies to prevent
@@ -1572,6 +1678,19 @@ class NgnDataModel extends NGN.EventEmitter {
   setSilent (fieldname, value) {
     if (fieldname === this.idAttribute) {
       this.id = value
+      return
+    }
+
+    // Account for nested models
+    if (this.hasRelationship(fieldname)) {
+      if (this[fieldname] instanceof NGN.DATA.Store) {
+        this[fieldname].clear()
+        this[fieldname].bulk(null, value)
+        return
+      }
+
+      this[fieldname].load(value)
+
       return
     }
 
@@ -1655,7 +1774,14 @@ class NgnDataModel extends NGN.EventEmitter {
         }
       } else if (me.joins.hasOwnProperty(key)) {
         me.rawjoins[key].load(data[key])
-      } else {
+      } else if (key !== me.idAttribute && !me.hasMetaField(key)) {
+        if (key === 'metaFields') {
+          try {
+            throw new Error('Here')
+          } catch (e) {
+            console.log(e)
+          }
+        }
         try {
           const source = NGN.stack.pop()
           console.warn('%c' + key + '%c specified in %c' + source.path + '%c as a data field but is not defined in the model.', NGN.css, '', NGN.css, '')
@@ -1670,12 +1796,10 @@ class NgnDataModel extends NGN.EventEmitter {
 }
 
 NGN.DATA = NGN.DATA || {}
-
-
 // Object.defineProperty(NGN.DATA, 'Model', NGN.public(Entity))
 
 Object.defineProperties(NGN.DATA, {
-  Model: NGN.public(function (cfg) {
+  Model: NGN.const(function (cfg) {
     const ModelLoader = function (data) {
       let model = new NgnDataModel(cfg)
       if (data) {
@@ -1687,7 +1811,7 @@ Object.defineProperties(NGN.DATA, {
     return ModelLoader
   }),
 
-  Entity: NGN.private(NgnDataModel)
+  Entity: NGN.privateconst(NgnDataModel)
 })
 
 if (NGN.nodelike) {

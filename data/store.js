@@ -21,7 +21,12 @@ class NgnDataStore extends NGN.EventEmitter {
        * @cfg {NGN.DATA.Model} model
        * An NGN Data Model to which data records conform.
        */
-      model: NGN.const(cfg.model || null),
+      _model: { //NGN.public(NGN.coalesce(cfg.model)),
+        enumerable: false,
+        writable: true,
+        configurable: false,
+        value: NGN.coalesce(cfg.model)
+      },
 
       // The raw data collection
       _data: NGN.private([]),
@@ -254,6 +259,14 @@ class NgnDataStore extends NGN.EventEmitter {
     }
   }
 
+  get model () {
+    return this._model
+  }
+
+  replaceModel (modelFn) {
+    this._model = modelFn
+  }
+
   get proxy () {
     return this._proxy
   }
@@ -429,12 +442,15 @@ class NgnDataStore extends NGN.EventEmitter {
     this.applyIndices(record, this._data.length)
     this._data.push(record)
     !this._loading && this._created.indexOf(record) < 0 && this._created.push(record)
+
     if (!NGN.coalesce(suppressEvent, false)) {
       this.emit('record.create', record)
     }
+
     if (!record.valid) {
       this.emit('record.invalid', record)
     }
+
     return record
   }
 
@@ -615,9 +631,11 @@ class NgnDataStore extends NGN.EventEmitter {
 
     // Slight delay to prevent faster systems from
     // responding before data is written to memory.
-    setTimeout(() => {
-      this.emit(event || 'load')
-    }, 100)
+    if (event !== null) {
+      setTimeout(() => {
+        this.emit(event || 'load')
+      }, 100)
+    }
   }
 
   /**
