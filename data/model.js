@@ -1811,7 +1811,7 @@ Object.defineProperties(NGN.DATA, {
     return ModelLoader
   }),
 
-  Entity: NGN.privateconst(NgnDataModel)
+  Entity: NGN.private(NgnDataModel)
 })
 
 if (NGN.nodelike) {
