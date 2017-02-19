@@ -435,7 +435,7 @@ class NgnDataModel extends NGN.EventEmitter {
         }
       }
 
-      this.addField(field, NGN.coalesce(this.fields[field], null))
+      this.addField(field, true)
     })
 
     // Add meta/hidden fields
@@ -1174,7 +1174,6 @@ class NgnDataModel extends NGN.EventEmitter {
           const source = NGN.stack.pop()
           console.warn('%c' + field + '%c data field defined multiple times (at %c' + source.path + '%c). Only the last defintion will be used.', NGN.css, '', NGN.css, '')
         } catch (e) {
-          console.log(field, e)
           console.warn('%c' + field + '%c data field defined multiple times. Only the last definition will be used.', NGN.css, '', NGN.css, '')
         }
 
@@ -1775,13 +1774,6 @@ class NgnDataModel extends NGN.EventEmitter {
       } else if (me.joins.hasOwnProperty(key)) {
         me.rawjoins[key].load(data[key])
       } else if (key !== me.idAttribute && !me.hasMetaField(key)) {
-        if (key === 'metaFields') {
-          try {
-            throw new Error('Here')
-          } catch (e) {
-            console.log(e)
-          }
-        }
         try {
           const source = NGN.stack.pop()
           console.warn('%c' + key + '%c specified in %c' + source.path + '%c as a data field but is not defined in the model.', NGN.css, '', NGN.css, '')
@@ -1802,9 +1794,11 @@ Object.defineProperties(NGN.DATA, {
   Model: NGN.const(function (cfg) {
     const ModelLoader = function (data) {
       let model = new NgnDataModel(cfg)
+
       if (data) {
         model.load(data)
       }
+
       return model
     }
 
