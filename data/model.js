@@ -389,7 +389,15 @@ class NgnDataModel extends NGN.EventEmitter {
        * Notice this example contains no store, just a model. In this scenario, the model
        * represents the entire data set, so no store is necessary.
        */
-      _proxy: NGN.private(config.proxy || null)
+      _proxy: NGN.private(config.proxy || null),
+
+      /**
+       * @cfgproperty {boolean} [proxyignore=false]
+       * A placeholder to determine whether data proxies should
+       * ignore the record or not. By default, proxies will operate
+       * on the record (set this to true to prevent proxy action on the model).
+       */
+      proxyignore: NGN.private(NGN.coalesce(config.proxyignore, false))
     })
 
     // Make sure the ID field exists.

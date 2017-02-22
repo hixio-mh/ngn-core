@@ -5,6 +5,15 @@
  * Provides a gateway to remote services such as HTTP and
  * websocket endpoints. This can be used directly to create
  * custom proxies.
+ * @fires enabled
+ * Triggered when the proxy state changes from a disabled
+ * state to an enabled state.
+ * @fires disabled
+ * Triggered when the proxy state changes from an enabled
+ * state to a disabled state.
+ * @fires statechange
+ * Triggered when the state changes. The new state (enabled/disabled)
+ * is passed to the event handler.
  */
 class NgnDataProxy extends NGN.EventEmitter {
   constructor (config) {
@@ -14,14 +23,84 @@ class NgnDataProxy extends NGN.EventEmitter {
 
     Object.defineProperties(this, {
       /**
-       * @configproperty {NGN.DATA.Store} store (required)
+       * @cfgproperty {NGN.DATA.Store} store (required)
        * THe store for data being proxied.
        */
       store: NGN.private(null),
 
       initialized: NGN.private(false),
-      liveSyncEnabled: NGN.private(false)
+
+      /**
+       * @property {boolean} liveSyncEnabled
+       * Indicates live sync is active.
+       * @readonly
+       */
+      liveSyncEnabled: NGN.private(false),
+
+      _enabled: NGN.private(true)
     })
+  }
+
+  /**
+   * @property {string} state
+   * Returns the current state (enabled/disabled) of the proxy.
+   * @readonly
+   */
+  get state () {
+    return this._enabled ? 'enabled' : 'disabled'
+  }
+
+  /**
+   * @property {boolean} enabled
+   * Indicates the proxy is enabled.
+   * @readonly
+   */
+  get enabled () {
+    return this._enabled
+  }
+
+  /**
+   * @property {boolean} disabled
+   * Indicates the proxy is disabled.
+   * @readonly
+   */
+  get disabled () {
+    return !this._enabled
+  }
+
+  /**
+   * @property {string} proxytype
+   * The type of underlying data (model or store).
+   * @private
+   */
+  get type () {
+    return this.store instanceof NGN.DATA.Store ? 'store' : 'model'
+  }
+
+  /**
+   * @method enable
+   * Changes the state to `enabled`. If the proxy is already
+   * enabled, this does nothing.
+   */
+  enable () {
+    if (!this._enabled) {
+      this._enabled = true
+      this.emit('enabled')
+      this.emit('statechange', this.state)
+    }
+  }
+
+  /**
+   * @method disable
+   * Changes the state to `disabled`. If the proxy is already
+   * enabled, this does nothing.
+   */
+  disable () {
+    if (this._enabled) {
+      this._enabled = false
+      this.emit('disabled')
+      this.emit('statechange', this.state)
+    }
   }
 
   init (store) {
@@ -40,15 +119,6 @@ class NgnDataProxy extends NGN.EventEmitter {
         })
       })
     }
-  }
-
-  /**
-   * @property {string} proxytype
-   * The type of underlying data (model or store).
-   * @private
-   */
-  get type () {
-    return this.store instanceof NGN.DATA.Store ? 'store' : 'model'
   }
 
   /**
@@ -98,7 +168,7 @@ class NgnDataProxy extends NGN.EventEmitter {
   }
 
   save () {
-    console.warn('Save should be overridden by a proxy implementation class.')
+
   }
 
   fetch () {
@@ -125,35 +195,130 @@ class NgnDataProxy extends NGN.EventEmitter {
 
     if (this.type === 'model') {
       // Basic CRUD (-R)
-      this.store.on('field.create', this.saveAndEmit('live.create'))
-      this.store.on('field.update', this.saveAndEmit('live.update'))
-      this.store.on('field.remove', this.saveAndEmit('live.delete'))
+      this.store.on('field.create', this.createModelRecord)
+      this.store.on('field.update', this.updateModelRecord)
+      this.store.on('field.remove', this.deleteModelRecord)
 
       // relationship.create is unncessary because no data is available
       // when a relationship is created. All related data will trigger a
       // `field.update` event.
-      this.store.on('relationship.remove', this.saveAndEmit('live.delete'))
+      this.store.on('relationship.remove', this.deleteModelRecord)
     } else {
       // Persist new records
-      this.store.on('record.create', this.saveAndEmit('live.create'))
-      this.store.on('record.restored', this.saveAndEmit('live.create'))
+      this.store.on('record.create', this.createStoreRecord)
+      this.store.on('record.restored', this.createStoreRecord)
 
       // Update existing records
-      this.store.on('record.update', this.saveAndEmit('live.update'))
+      this.store.on('record.update', this.updateStoreRecord)
 
       // Remove old records
-      this.store.on('record.delete', this.saveAndEmit('live.delete'))
-      this.store.on('clear', this.saveAndEmit('live.delete'))
+      this.store.on('record.delete', this.deleteStoreRecord)
+      this.store.on('clear', this.clearStoreRecords)
     }
   }
 
-  saveAndEmit (eventName) {
-    return (record) => {
-      this.save(() => {
-        this.emit(eventName, record || null)
-        this.store.emit(eventName, record || null)
-      })
+  /**
+   * @method createModelRecord
+   * This method is used to create a record from a NGN.DATA.Model source.
+   * This method is used as a part of the #enableLiveSync process.
+   * Overriding this method will customize the functionality of the
+   * live sync feature.
+   * @private
+   */
+  createModelRecord () {
+    this.shouldOverride('createModelRecord')
+  }
+
+  /**
+   * @method updateModelRecord
+   * This method is used to update a record from a NGN.DATA.Model source.
+   * This method is used as a part of the #enableLiveSync process.
+   * Overriding this method will customize the functionality of the
+   * live sync feature.
+   * @private
+   */
+  updateModelRecord () {
+    this.shouldOverride('updateModelRecord')
+  }
+
+  /**
+   * @method deleteModelRecord
+   * This method is used to delete a record from a NGN.DATA.Model source.
+   * This method is used as a part of the #enableLiveSync process.
+   * Overriding this method will customize the functionality of the
+   * live sync feature.
+   * @private
+   */
+  deleteModelRecord () {
+    this.shouldOverride('deleteModelRecord')
+  }
+
+  /**
+   * @method createStoreRecord
+   * This method is used to create a record from a NGN.DATA.Store source.
+   * This method is used as a part of the #enableLiveSync process.
+   * Overriding this method will customize the functionality of the
+   * live sync feature.
+   * @private
+   */
+  createStoreRecord () {
+    this.shouldOverride('createStoreRecord')
+  }
+
+  /**
+   * @method updateStoreRecord
+   * This method is used to create a record from a NGN.DATA.Store source.
+   * This method is used as a part of the #enableLiveSync process.
+   * Overriding this method will customize the functionality of the
+   * live sync feature.
+   * @private
+   */
+  updateStoreRecord () {
+    this.shouldOverride('updateStoreRecord')
+  }
+
+  /**
+   * @method deleteStoreRecord
+   * This method is used to create a record from a NGN.DATA.Store source.
+   * This method is used as a part of the #enableLiveSync process.
+   * Overriding this method will customize the functionality of the
+   * live sync feature.
+   * @private
+   */
+  deleteStoreRecord () {
+    this.shouldOverride('deleteStoreRecord')
+  }
+
+  /**
+   * @method clearStoreRecords
+   * This method is used to remove all records from a NGN.DATA.Store source.
+   * This method is used as a part of the #enableLiveSync process.
+   * Overriding this method will customize the functionality of the
+   * live sync feature.
+   * @private
+   */
+  clearStoreRecords () {
+    this.shouldOverride('clearStoreRecords')
+  }
+
+  /**
+   * @method proxyRecordFilter
+   * This is a filter method for the NGN.DATA.Store.
+   * It will strip out records that shouldn't be saved/fetched/etc.
+   * As a result, the NGN.DATA.Store#records will only return records that
+   * the proxy should work on, i.e. anything not explicitly prohibited by
+   * NGN.DATA.Model#proxyignore.
+   */
+  proxyRecordFilter (model) {
+    if (model.hasOwnProperty('proxyignore')) {
+      return !model.proxyignore
     }
+
+    return true
+  }
+
+  static shouldOverride (methodName) {
+    console.warn(methodName + ' should be overridden by a proxy implementation class.')
   }
 }
 
