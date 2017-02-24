@@ -180,7 +180,7 @@ Object.defineProperties(NGN, {
   }),
 
   /**
-   * @method get
+   * @method set
    * Create a private `setter` property definition for an object.
    * Public setters are part of the ES2015 class spec.
    *
@@ -200,13 +200,31 @@ Object.defineProperties(NGN, {
    * })
    * ```
    * @param  {function} fn
-   * Any valid async JavaScript function with a `return` value.
+   * Any valid JavaScript function that accepts a single argument (value).
    * @private
    */
   set: NGN.define(false, false, false, function (fn) {
     return {
       enumerable: false,
       set: fn
+    }
+  }),
+
+  /**
+   * @method getset
+   * Create a private property defintion containing both a `getter` and `setter`
+   * for the specified attribute.
+   * @param  {function} getFn
+   * Any valid async JavaScript function with a `return` value.
+   * @param  {function} setFn
+   * Any valid JavaScript function that accepts a single argument (value).
+   * @private
+   */
+  getset: NGN.define(false, false, false, (getter, setter) => {
+    return {
+      enumerable: false,
+      get: getter,
+      set: setter
     }
   })
 })
@@ -344,11 +362,14 @@ Object.defineProperties(NGN, {
    * Any number of arguments can be passed to this method.
    */
   coalesce: NGN.public(function () {
-    for (let arg in arguments) {
-      if (arguments[arg] !== undefined && arguments[arg] !== null) {
-        return arguments[arg]
-      }
+    for (let arg = 0; arg < arguments.length; arg++) {
+      try {
+        if (arguments[arg] !== undefined && arguments[arg] !== null) {
+          return arguments[arg]
+        }
+      } catch (e) {}
     }
+
     return null
   }),
 
@@ -360,11 +381,11 @@ Object.defineProperties(NGN, {
    * @private
    */
   nodelike: NGN.get(function () {
-    let node = false
     try {
-      node = require !== undefined
-    } catch (e) {}
-    return node
+      return process !== undefined
+    } catch (e) {
+      return false
+    }
   }),
 
   /**
@@ -376,8 +397,8 @@ Object.defineProperties(NGN, {
    * The array with unique records.
    * @private
    */
-  dedupe: NGN.private(function (array) {
-    return array.filter(function (element, index) {
+  dedupe: NGN.private((array) => {
+    return array.filter((element, index) => {
       return array.indexOf(element) === index
     })
   }),
@@ -390,8 +411,9 @@ Object.defineProperties(NGN, {
    * @return {string}
    * Returns the type (all lower case).
    */
-  typeof: NGN.define(false, false, false, function (el) {
-    var value = Object.prototype.toString.call(el).split(' ')[1].replace(/\]|\[/gi, '').toLowerCase()
+  typeof: NGN.privateconst((el) => {
+    let value = Object.prototype.toString.call(el).split(' ')[1].replace(/\]|\[/gi, '').toLowerCase()
+
     if (value === 'function') {
       if (!el.name) {
         return el.toString().replace(/\n/gi, '').replace(/^function\s|\(.*$/mgi,'').toLowerCase()
@@ -399,6 +421,7 @@ Object.defineProperties(NGN, {
         value = el.name || 'function'
       }
     }
+
     return value.toLowerCase();
    }),
 
@@ -461,29 +484,48 @@ Object.defineProperties(NGN, {
    * }
    * ```
    */
+  processStackItem: NGN.privateconst(function (item, uri) {
+    return item.replace(/at.*\(|\)/gi, '')
+      .replace(uri, './')
+      .replace(/\/{2,100}/gi, '/')
+      .trim().split(':')
+  }),
+
   stack: NGN.get(function () {
-    const me = this
     const originalStack = (new Error).stack.split('\n')
     let stack = (new Error).stack.split('\n') || []
+    let fnRegex = /at.*\(/gi
 
-    stack = stack.filter(function (item) {
+    stack = stack.filter((item) => {
       return item.split(':').length > 1
-    }).map(function (item) {
-      item = item
-        .replace(/^.*\s\(/i, '')
-        .replace(/\)/gi, '')
-        .replace(/^.*\@/i, '')
-        .replace((window !== undefined ? window.location.origin : (process !== undefined ? process.cwd() : '')), '')
-        .replace(/^.*\:\/\//, '')
-        .replace(/\s{1,100}at\s{1,100}/gi, '')
-        .replace(/anonymous\>/, 'console')
-        .trim().split(':')
+    }).map((item) => {
+      let operation = fnRegex.exec(item)
 
-      return {
-        path: item[0].substr(me.nodelike ? 0 : 1, item[0].length - (me.nodelike ? 0 : 1)) + ':' + item[1] + ':' + item[2],
-        file: item[0].substr(me.nodelike ? 0 : 1, item[0].length - (me.nodelike ? 0 : 1)),
-        line: parseInt(item[1], 10),
-        column: parseInt(item[2], 10)
+      if (operation) {
+        operation = operation[0].replace(/^at\s{1,100}|\s{1,100}\($/gi, '').replace('<anonymous>', 'console')
+      }
+
+      if (this.nodelike) {
+        item = this.processStackItem(item.toString(), process.cwd())
+
+        return {
+          path: item.join(':').replace('./', process.cwd() + '/'),
+          // path: item[0].substr(0, item[0].length) + ':' + item[1] + ':' + item[2],
+          file: item[0].substr(0, item[0].length),
+          line: parseInt(item[1], 10),
+          column: parseInt(item[2], 10),
+          operation: operation
+        }
+      } else {
+        item = this.processStackItem(item.toString(), window.location.origin)
+
+        return {
+          path: item[0].substr(1, item[0].length - 1) + ':' + item[1] + ':' + item[2],
+          file: item[0].substr(1, item[0].length - 1),
+          line: parseInt(item[1], 10),
+          column: parseInt(item[2], 10),
+          operation: operation
+        }
       }
     })
 
@@ -494,7 +536,7 @@ Object.defineProperties(NGN, {
         line: 0,
         column: 0
       }]
-    } else if (me.nodelike) {
+    } else if (this.nodelike) {
       stack.reverse()
     }
 
@@ -512,7 +554,7 @@ Object.defineProperties(NGN, {
    * ```
    * @private
    */
-  css: NGN.privateconst('font-weight: bold;'),
+  css: NGN.private('font-weight: bold;'),
 
   /**
    * @method isFn
@@ -523,7 +565,7 @@ Object.defineProperties(NGN, {
    * @returns {boolean}
    * @private
    */
-  isFn: NGN.privateconst(function (v) {
+  isFn: NGN.privateconst((v) => {
     return typeof v === 'function'
   })
 })
