@@ -1053,6 +1053,10 @@ class NgnDataModel extends NGN.EventEmitter {
    * @returns {Boolean}
    */
   hasMetaField (fieldname) {
+    if (!this.has(fieldname)) {
+      return false
+    }
+
     return this.getDataField(fieldname).hidden
   }
 
