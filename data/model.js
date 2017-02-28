@@ -1130,7 +1130,7 @@ class NgnDataModel extends NGN.EventEmitter {
                 rtn[key] = _obj[key]
                 break
               default:
-                rtn[key] = _obj[key]
+                rtn[key] = NGN.coalesce(_obj[key], this.fields[key].default, null)
                 break
             }
           }
@@ -1216,7 +1216,7 @@ class NgnDataModel extends NGN.EventEmitter {
 
       Object.defineProperty(me, field, {
         get: function () {
-          return me.raw[field]
+          return NGN.coalesce(me.raw[field], me.fields[field].default, null)
         },
         set: function (value) {
           let old = me.raw[field]
