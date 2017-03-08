@@ -1069,7 +1069,7 @@ class NgnDataModel extends NGN.EventEmitter {
       return null
     }
 
-    if (!this.dataMap || this.dataMap.hasOwnProperty(fieldname)) {
+    if (!this.dataMap || !this.dataMap.hasOwnProperty(fieldname)) {
       return fieldname
     }
 
