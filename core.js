@@ -584,5 +584,27 @@ Object.defineProperties(NGN, {
     return function () {
       fn.apply(fn, arguments)
     }
+  }),
+
+  /**
+   * @method deprecateClass
+   * Logs a warning indicating the class is deprecated. This differs from
+   * #deprecate by extending & preserving the original class (the resulting
+   * class can be used with the `new` operator).
+   * @param {function} class
+   * The class to deprecate.
+   * @param {string} [message='The class has been deprecated.']
+   * The warning displayed to the user.
+   * @private
+   */
+  deprecateClass: NGN.privateconst(function (classFn, message='The class has been deprecated.') {
+    class DeprecatedClass extends classFn {
+      constructor () {
+        console.warn(message)
+        super(...arguments)
+      }
+    }
+
+    return DeprecatedClass
   })
 })
