@@ -567,5 +567,22 @@ Object.defineProperties(NGN, {
    */
   isFn: NGN.privateconst((v) => {
     return typeof v === 'function'
+  }),
+
+  /**
+   * @method deprecate
+   * Logs a warning indicating the method is deprecated.
+   * @param {function} method
+   * The method to deprecate.
+   * @param {string} [message='The method has been deprecated.']
+   * The warning displayed to the user.
+   * @private
+   */
+  deprecate: NGN.privateconst(function (fn, message='The method has been deprecated.') {
+    console.warn(message)
+
+    return function () {
+      fn.apply(fn, arguments)
+    }
   })
 })
