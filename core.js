@@ -598,13 +598,14 @@ Object.defineProperties(NGN, {
    * @private
    */
   deprecateClass: NGN.privateconst(function (classFn, message='The class has been deprecated.') {
-    class DeprecatedClass extends classFn {
-      constructor () {
-        console.warn(message)
-        super(...arguments)
+    return function () {
+      if (NGN.nodelike) {
+        console.warn('DEPRECATION NOTICE: ' + message)
+      } else {
+        console.warn('%cDEPRECATION NOTICE: %c' + message, NGN.css, 'font-weight: normal;')
       }
-    }
 
-    return DeprecatedClass
+      return new classFn(...arguments)
+    }
   })
 })
