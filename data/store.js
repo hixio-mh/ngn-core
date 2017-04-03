@@ -1281,9 +1281,10 @@ class NgnDataStore extends NGN.EventEmitter {
           if (a[functionKeys[i]] !== b[functionKeys[i]]) {
             switch (fn[functionKeys[i]].toString().trim().toLowerCase()) {
               case 'asc':
-                if (typeof a.fields[functionKeys[i]]) {
+                if (typeof a.fields[functionKeys[i]] === 'string') {
                   return a[functionKeys[i]].localeCompare(b[functionKeys[i]])
                 }
+
                 return a[functionKeys[i]] > b[functionKeys[i]] ? 1 : -1
 
               case 'desc':
@@ -1293,6 +1294,7 @@ class NgnDataStore extends NGN.EventEmitter {
                 if (typeof fn[functionKeys[i]] === 'function') {
                   return fn[functionKeys[i]](a, b)
                 }
+                
                 return 0
             }
           }

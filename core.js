@@ -257,8 +257,8 @@ Object.defineProperties(NGN, {
    * console.log(NGN.greet('world')) // outputs Hello, world!
    * @param  {string} attribute
    * Name of the attribute to add to the object.
-   * @param  {Object} specification
-   * The object specification, i.e.
+   * @param  {Object} descriptor
+   * The object descriptor, i.e.
    * ```
    * {
    *  enumerable: true/false,
@@ -277,8 +277,8 @@ Object.defineProperties(NGN, {
    * ```
    * @private
    */
-  extend: NGN.privateconst(function (attribute, specification) {
-    Object.defineProperty(this, attribute, specification)
+  extend: NGN.privateconst(function (attribute, descriptor) {
+    Object.defineProperty(this, attribute, descriptor)
   }),
 
   /**
@@ -554,7 +554,9 @@ Object.defineProperties(NGN, {
    * ```
    * @private
    */
-  css: NGN.private('font-weight: bold;'),
+  css: NGN.get(() => {
+    return this.nodelike ? '' : 'font-weight: bold;'
+  }),
 
   /**
    * @method isFn
@@ -570,20 +572,60 @@ Object.defineProperties(NGN, {
   }),
 
   /**
+   * @method wrap
+   * Executes a **synchronous** method before invoking a standard function.
+   * This is primarily designed for displaying warnings, but can also be
+   * used for other operations like migration layers.
+   * @param {function} preMethod
+   * The **synchronous** function to invoke before the class is instantiated. This
+   * method receives the same arguments passed to the class.
+   * @param {function} method
+   * The function to wrap.
+   * @private
+   */
+  wrap: NGN.privateconst(function (preFn, fn) {
+    return function () {
+      preFn(...arguments)
+      fn(...arguments)
+    }
+  }),
+
+  /**
+   * @method wrapClass
+   * Executes a **synchronous** method before returning an instantiated class.
+   * In other words, it runs a function first, then returns the equivalent of
+   * `new MyClass(...)`. This is primarily designed for displaying warnings,
+   * but can also be used for other operations like migration layers.
+   * @param {function} preMethod
+   * The **synchronous** method to invoke before the class is instantiated. This
+   * method receives the same arguments passed to the class.
+   * @param {function} class
+   * The class to wrap.
+   * @private
+   */
+  wrapClass: NGN.privateconst(function (preFn, classFn) {
+    return function () {
+      preFn(...arguments)
+      return new classFn(...arguments)
+    }
+  }),
+
+  /**
    * @method deprecate
    * Logs a warning indicating the method is deprecated.
    * @param {function} method
    * The method to deprecate.
    * @param {string} [message='The method has been deprecated.']
    * The warning displayed to the user.
-   * @private
    */
   deprecate: NGN.privateconst(function (fn, message='The method has been deprecated.') {
-    console.warn(message)
-
-    return function () {
-      fn.apply(fn, arguments)
-    }
+    return this.wrap(() => {
+      if (NGN.nodelike) {
+        console.warn('DEPRECATION NOTICE: ' + message)
+      } else {
+        console.warn('%cDEPRECATION NOTICE: %c' + message, NGN.css, 'font-weight: normal;')
+      }
+    }, fn)
   }),
 
   /**
@@ -595,17 +637,14 @@ Object.defineProperties(NGN, {
    * The class to deprecate.
    * @param {string} [message='The class has been deprecated.']
    * The warning displayed to the user.
-   * @private
    */
   deprecateClass: NGN.privateconst(function (classFn, message='The class has been deprecated.') {
-    return function () {
+    return this.wrapClass(() => {
       if (NGN.nodelike) {
         console.warn('DEPRECATION NOTICE: ' + message)
       } else {
         console.warn('%cDEPRECATION NOTICE: %c' + message, NGN.css, 'font-weight: normal;')
       }
-
-      return new classFn(...arguments)
-    }
+    }, classFn)
   })
 })
