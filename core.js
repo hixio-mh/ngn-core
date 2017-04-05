@@ -555,7 +555,7 @@ Object.defineProperties(NGN, {
    * @private
    */
   css: NGN.get(() => {
-    return this.nodelike ? '' : 'font-weight: bold;'
+    return NGN.nodelike ? '' : 'font-weight: bold;'
   }),
 
   /**
