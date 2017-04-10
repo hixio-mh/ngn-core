@@ -614,7 +614,7 @@ Object.defineProperties(NGN, {
    * @method deprecate
    * Logs a warning indicating the method is deprecated.
    * @param {function} method
-   * The method to deprecate.
+   * The method to return/execute.
    * @param {string} [message='The method has been deprecated.']
    * The warning displayed to the user.
    */
@@ -634,7 +634,7 @@ Object.defineProperties(NGN, {
    * #deprecate by extending & preserving the original class (the resulting
    * class can be used with the `new` operator).
    * @param {function} class
-   * The class to deprecate.
+   * The class to return/execute.
    * @param {string} [message='The class has been deprecated.']
    * The warning displayed to the user.
    */
