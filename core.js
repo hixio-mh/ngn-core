@@ -492,7 +492,7 @@ Object.defineProperties(NGN, {
   }),
 
   stack: NGN.get(function () {
-    const originalStack = (new Error).stack.split('\n')
+    // const originalStack = (new Error).stack.split('\n')
     let stack = (new Error).stack.split('\n') || []
     let fnRegex = /at.*\(/gi
 
@@ -619,7 +619,7 @@ Object.defineProperties(NGN, {
    * The warning displayed to the user.
    */
   deprecate: NGN.privateconst(function (fn, message='The method has been deprecated.') {
-    return this.wrap(() => {
+    return this.wrap(function () {
       if (NGN.nodelike) {
         console.warn('DEPRECATION NOTICE: ' + message)
       } else {
@@ -639,7 +639,7 @@ Object.defineProperties(NGN, {
    * The warning displayed to the user.
    */
   deprecateClass: NGN.privateconst(function (classFn, message='The class has been deprecated.') {
-    return this.wrapClass(() => {
+    return this.wrapClass(function () {
       if (NGN.nodelike) {
         console.warn('DEPRECATION NOTICE: ' + message)
       } else {
