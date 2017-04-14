@@ -614,7 +614,7 @@ Object.defineProperties(NGN, {
    * @method deprecate
    * Logs a warning indicating the method is deprecated.
    * @param {function} method
-   * The method to deprecate.
+   * The method to return/execute.
    * @param {string} [message='The method has been deprecated.']
    * The warning displayed to the user.
    */
@@ -634,7 +634,7 @@ Object.defineProperties(NGN, {
    * #deprecate by extending & preserving the original class (the resulting
    * class can be used with the `new` operator).
    * @param {function} class
-   * The class to deprecate.
+   * The class to return/execute.
    * @param {string} [message='The class has been deprecated.']
    * The warning displayed to the user.
    */
@@ -646,5 +646,60 @@ Object.defineProperties(NGN, {
         console.warn('%cDEPRECATION NOTICE: %c' + message, NGN.css, 'font-weight: normal;')
       }
     }, classFn)
+  }),
+
+  /**
+   * @method needs
+   * A method to check for the existance of required attributes in an object.
+   * This is designed to check for namespace existance.
+   *
+   * ```js
+   * NGN.uses(NGN, 'DOM','BUS', 'NET', 'JUNK') // Throws an error because "JUNK" doesn't exist.
+   * ```
+   * @param {Object} namespace
+   * The object to check.
+   * @param {String[]} attributes
+   * A list of attributes to check for.
+   * @private
+   */
+  needs: NGN.private(function (namespace, ...attributes) {
+    if (typeof namespace !== 'object') {
+      throw new Error('NGN.uses() requires an object.')
+    }
+
+    let missing = []
+
+    for (let value in attributes) {
+      if (!namespace.hasOwnProperty(value)) {
+        missing.push(value)
+      }
+    }
+
+    // Throw an error if there are any missing attributes.
+    if (missing.length > 0) {
+      throw new MissingDependencyError(`Missing ${namespace.constructor.name} dependencies: ${missing.join(', ')}`.replace(/\s{2,100}/gi, ' '))
+    }
+  }),
+
+  /**
+   * @method createAlias
+   * A helper method to alias a value on an object. This is the equivalent of:
+   * ```js
+   * Object.defineProperty(namespace, name, NGN.get(() => {
+   *   return value
+   * }))
+   * ```
+   * @param  {Object} namespace
+   * The object to apply the alias property to.
+   * @param  {String} name
+   * The alias name.
+   * @param  {Any} value
+   * The value to return.
+   * @private
+   */
+  createAlias: NGN.private(function (namespace, name, value) {
+    Object.defineProperty(namespace, name, NGN.get(() => {
+      return value
+    }))
   })
 })
