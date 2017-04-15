@@ -670,8 +670,8 @@ Object.defineProperties(NGN, {
     let missing = []
 
     for (let value in attributes) {
-      if (!namespace.hasOwnProperty(value)) {
-        missing.push(value)
+      if (!namespace.hasOwnProperty(attributes[value])) {
+        missing.push(attributes[value])
       }
     }
 
