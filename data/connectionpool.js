@@ -164,7 +164,7 @@ class ConnectionPool extends NGN.EventEmitter {
     }
 
     if (NGN.isFn(drainFn)) {
-      this.drainMethod[key] = drainMethod
+      this.drainMethod[key] = drainFn
     }
 
     // Notify any event handlers
