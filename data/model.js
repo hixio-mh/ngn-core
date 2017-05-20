@@ -176,6 +176,18 @@ class NgnDataModel extends NGN.EventEmitter {
        */
       autoid: NGN.public(NGN.coalesce(config.autoid, false)),
 
+      /**
+       * @cfg {String} [autoidPrefix]
+       * Prefix all automatically generated ID's with this prefix.
+       */
+      autoidPrefix: NGN.public(NGN.coalesce(config.autoidPrefix)),
+
+      /**
+       * @cfg {String} [autoidPostfix]
+       * Apply this string to the end of every generated ID..
+       */
+      autoidPostfix: NGN.public(NGN.coalesce(config.autoidPostfix)),
+
       benchmark: NGN.private(null),
 
       /**
@@ -1258,7 +1270,7 @@ class NgnDataModel extends NGN.EventEmitter {
       me.fields[field].type = NGN.coalesce(me.fields[field].type, String)
       if (field === me.idAttribute && me.autoid === true) {
         me.fields[field].type = String
-        me.fields[field]['default'] = NGN.DATA.util.GUID()
+        me.fields[field]['default'] = NGN.coalesce(me.autoidPrefix, '') + NGN.DATA.util.GUID() + NGN.coalesce(me.autoidPostfix, '')
       } else {
         me.fields[field]['default'] = NGN.coalesce(me.fields[field]['default'])
       }
@@ -1351,7 +1363,7 @@ class NgnDataModel extends NGN.EventEmitter {
         }
       }
     } else if (me.id === null && me.autoid) {
-      me.id = NGN.DATA.util.GUID()
+      me.id = NGN.coalesce(me.autoidPrefix, '') + NGN.DATA.util.GUID() + NGN.coalesce(me.autoidPostfix, '')
     }
   }
 

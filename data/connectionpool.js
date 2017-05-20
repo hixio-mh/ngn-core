@@ -151,6 +151,8 @@ class ConnectionPool extends NGN.EventEmitter {
 
     // Add the connection.
     Object.defineProperty(this, key, {
+      enumerable: true,
+      configurable: true,
       get: () => {
         this.emit('pool.used', key)
         return value
@@ -192,6 +194,10 @@ class ConnectionPool extends NGN.EventEmitter {
       connection: this[key]
     }
 
+    Object.defineProperty(this, key, {
+      get: undefined
+    })
+
     delete this[key]
 
     if (this.clients.hasOwnProperty(key)) {
@@ -217,6 +223,7 @@ class ConnectionPool extends NGN.EventEmitter {
     this.clients[key] = NGN.coalesce(this.clients[key], {})
 
     let id = NGN.coalesce(name, NGN.DATA.util.GUID())
+
     this.clients[key][id] = NGN.coalesce(this.clients[key][id], 0)
     this.clients[key][id]++
 
@@ -234,22 +241,33 @@ class ConnectionPool extends NGN.EventEmitter {
    * provided here as well.
    */
   unregisterClient (key, name) {
-    try {
-      this.clients[key][name]--
-      if (this.clients[key][name] === 0) {
-        delete this.clients[key][name]
-        this.emit('client.disconnected', {
-          connection: this[key],
-          connectionId: key,
-          id: name
-        })
-      }
+    if (!this.clients.hasOwnProperty(key)) {
+      NGN.BUS.emit('NGN.ADVISORY.WARN', `Cannot unregister non-existant client: "${key}"`)
+      return
+    }
 
-      if (Object.keys(this.clients[key]).length === 0) {
-        delete this.clients[key]
-        this.emit('pool.drained', key)
-      }
-    } catch (e) {}
+    if (!this.clients[key].hasOwnProperty(name)) {
+      NGN.BUS.emit('NGN.ADVISORY.WARN', `Cannot unregister unrecognized client (${name}) from connection ID: ${key}`)
+      return
+    }
+
+    this.clients[key][name] = this.clients[key][name] - 1
+
+    if (this.clients[key][name] === 0) {
+      delete this.clients[key][name]
+
+      this.emit('client.disconnected', {
+        connection: this[key],
+        connectionId: key,
+        id: name
+      })
+    }
+
+    if (Object.keys(this.clients[key]).length === 0) {
+      delete this.clients[key]
+
+      this.emit('pool.drained', key)
+    }
   }
 
   /**

@@ -108,13 +108,15 @@ class NgnDataProxy extends NGN.EventEmitter {
   /**
    * @method disable
    * Changes the state to `disabled`. If the proxy is already
-   * enabled, this does nothing.
+   * enabled, this does nothing. This will also disable live
+   * sync (runs #disableLiveSync automatically).
    */
   disable () {
     if (this._enabled) {
       this._enabled = false
       this.emit('disabled')
       this.emit('statechange', this.state)
+      this.disableLiveSync()
     }
   }
 
@@ -207,28 +209,49 @@ class NgnDataProxy extends NGN.EventEmitter {
     }
 
     this.liveSyncEnabled = true
+    this.switchSync('on')
+    this.emit('livesync.enabled')
+  }
 
+  /**
+   * @method disableLiveSync
+   * Live synchronization monitors the dataset for changes and immediately
+   * commits them to the data storage system. This method disables this
+   * functionality.
+   */
+  disableLiveSync () {
+    if (!this.liveSyncEnabled) {
+      return
+    }
+
+    this.liveSyncEnabled = false
+    this.switchSync('off')
+    this.emit('livesync.disabled')
+  }
+
+  // Helper method.
+  switchSync (fn) {
     if (this.type === 'model') {
       // Basic CRUD (-R)
-      this.store.on('field.create', this.createModelRecord)
-      this.store.on('field.update', this.updateModelRecord)
-      this.store.on('field.remove', this.deleteModelRecord)
+      this.store[fn]('field.create', this.createModelRecord)
+      this.store[fn]('field.update', this.updateModelRecord)
+      this.store[fn]('field.remove', this.deleteModelRecord)
 
       // relationship.create is unncessary because no data is available
       // when a relationship is created. All related data will trigger a
       // `field.update` event.
-      this.store.on('relationship.remove', this.deleteModelRecord)
+      this.store[fn]('relationship.remove', this.deleteModelRecord)
     } else {
       // Persist new records
-      this.store.on('record.create', this.createStoreRecord)
-      this.store.on('record.restored', this.createStoreRecord)
+      this.store[fn]('record.create', this.createStoreRecord)
+      this.store[fn]('record.restored', this.createStoreRecord)
 
       // Update existing records
-      this.store.on('record.update', this.updateStoreRecord)
+      this.store[fn]('record.update', this.updateStoreRecord)
 
       // Remove old records
-      this.store.on('record.delete', this.deleteStoreRecord)
-      this.store.on('clear', this.clearStoreRecords)
+      this.store[fn]('record.delete', this.deleteStoreRecord)
+      this.store[fn]('clear', this.clearStoreRecords)
     }
   }
 
