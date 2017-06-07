@@ -1515,6 +1515,26 @@ class NgnDataModel extends NGN.EventEmitter {
     const model = this.rawjoins[name]
     const me = this
 
+    let oldData = model.data
+    model.on('load', () => {
+      let payload = {
+        action: 'update',
+        field: name,
+        old: NGN.coalesce(oldData),
+        new: model.data,
+        join: true,
+        originalEvent: {
+          event: 'load',
+          record: model
+        }
+      }
+
+      oldData = model.data
+
+      me.emit('field.update', payload)
+      me.emit('field.update.' + name, payload)
+    })
+
     model.on('field.update', function (delta) {
       let payload = {
         action: 'update',
