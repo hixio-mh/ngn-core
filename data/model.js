@@ -1284,6 +1284,12 @@ class NgnDataModel extends NGN.EventEmitter {
         },
         set: function (value) {
           let old = me.raw[field]
+
+          // If no change is made, do not update anything.
+          if (old === value) {
+            return
+          }
+
           const wasInvalid = !me.validate(field)
 
           // if (old === value) {
