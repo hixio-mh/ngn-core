@@ -621,8 +621,10 @@ class NgnDataStore extends NGN.EventEmitter {
   bulk (event, data) {
     this._loading = true
 
+    let resultSet = []
+
     data.forEach(record => {
-      this.add(record, true)
+      resultSet.push(this.add(record, true))
     })
 
     this._loading = false
@@ -633,8 +635,11 @@ class NgnDataStore extends NGN.EventEmitter {
     // responding before data is written to memory.
     if (event !== null) {
       setTimeout(() => {
-        this.emit(event || 'load')
+        this.emit(event || 'load', resultSet)
+        resultSet = null
       }, 100)
+    } else {
+      resultSet = null
     }
   }
 
@@ -1294,7 +1299,7 @@ class NgnDataStore extends NGN.EventEmitter {
                 if (typeof fn[functionKeys[i]] === 'function') {
                   return fn[functionKeys[i]](a, b)
                 }
-                
+
                 return 0
             }
           }
