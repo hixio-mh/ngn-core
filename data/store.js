@@ -451,13 +451,6 @@ class NgnDataStore extends NGN.EventEmitter {
       this.emit('record.invalid', record)
     }
 
-    // Populate referenced data.
-    record.relationships.forEach((rel) => {
-      if (data.hasOwnProperty(rel)) {
-        record[rel].load(data[rel])
-      }
-    })
-
     return record
   }
 
