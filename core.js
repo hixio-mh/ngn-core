@@ -326,6 +326,7 @@ Object.defineProperties(NGN, {
    * function () {
    *  return NGN.slice(arguments)
    * }
+   * ```
    * @param  {Object} obj
    * The object to slice into an array.
    * @return {array}
@@ -344,6 +345,7 @@ Object.defineProperties(NGN, {
    * function () {
    *  return NGN.splice(arguments)
    * }
+   * ```
    * @param  {Object} obj
    * The object to splice into an array.
    * @return {array}
@@ -354,24 +356,26 @@ Object.defineProperties(NGN, {
   }),
 
   /**
-   * @method coalesce
-   * Finds the first non-null/defined value in a list of arguments.
-   * This can be used with {@link Boolean Boolean} values, since `true`/`false` is a
-   * non-null/defined value.
-   * @param {Mixed} args
-   * Any number of arguments can be passed to this method.
+   * @method converge
+   * Provides a basic coalesce. Expects the first parameter to be a boolean
+   * value. `true` will wrap arguments in a nullIf operator. `false` will not.
+   * @private
    */
-  coalesce: NGN.public(function () {
-    for (let arg = 0; arg < arguments.length; arg++) {
+  converge: NGN.private(function () {
+    for (let arg = 1; arg < arguments.length; arg++) {
       try {
-        if (arguments[arg] !== undefined && arguments[arg] !== null) {
+        if (arguments[arg] !== undefined && (
+          arguments[0]
+          ? NGN.nullIf(arguments[arg])
+          : arguments[arg]) !== null
+        ) {
           return arguments[arg]
         }
       } catch (e) {}
     }
 
     return null
-  }),
+  })
 
   /**
    * @method nullIf
@@ -391,14 +395,11 @@ Object.defineProperties(NGN, {
    * The variable or value to check.
    * @param {any} [comparisonExpression = '']
    * The variable or value to compare the source expression against.
-   * @returns {any}
+   * @return {any}
    * If the source expression matches the comparison expression, `null` will
    * be returned. If they do not match, the source expression will be returned.
    */
-  nullIf: NGN.public(function (sourceExpression, comparisonExpression) {
-    stripHiddenCharcaters = NGN.coalesce(stripHiddenCharcaters, true)
-    comparisonExpression = NGN.coalesce(comparisonExpression, '')
-
+  nullIf: NGN.public(function (sourceExpression, comparisonExpression = '') {
     try {
       // If the values aren't equal, make sure it's not due to blank values
       // or hidden characters.
@@ -419,6 +420,31 @@ Object.defineProperties(NGN, {
     } catch (e) {
       return null
     }
+  }),
+
+  /**
+   * @method coalesce
+   * Finds the first non-null/defined value in a list of arguments.
+   * This can be used with {@link Boolean Boolean} values, since `true`/`false` is a
+   * non-null/defined value.
+   * @param {Mixed} args
+   * Any number of arguments can be passed to this method.
+   * @return {Any}
+   * Returns the first non-null/defined value. If non exist, `null` is retutned.
+   */
+  coalesce: NGN.public(function () {
+    NGN.converge(false, ...arguments)
+  }),
+
+  /**
+   * @method coalesceb
+   * Provides the same functionality as #coalesce, except **b**lank/empty arguments
+   * are treated as `null` values.
+   * @param {Mixed} args
+   * Any number of arguments can be passed to this method.
+   */
+  coalesceb: NGN.public(function () {
+    NGN.converge(true, ...arguments)
   }),
 
   /**
@@ -446,9 +472,18 @@ Object.defineProperties(NGN, {
    * @private
    */
   dedupe: NGN.private((array) => {
-    return array.filter((element, index) => {
-      return array.indexOf(element) === index
-    })
+    let matches = []
+
+    // This is more performant than array.filter in most cases.
+    for (let i = 0; i < array.length; i++) {
+      if (array.indexOf(array[i]) === i) {
+        matches.push(array[i])
+      }
+    }
+
+    array = null
+
+    return matches
   }),
 
   /**
@@ -592,21 +627,6 @@ Object.defineProperties(NGN, {
   }),
 
   /**
-   * @property css
-   * A CSS string used for highlighting console output in Chrome and Firefox.
-   *
-   * **Example:**
-   *
-   * ```js
-   * console.log('%cHighlight %c some text and leave the rest normal.', NGN.css, '')
-   * ```
-   * @private
-   */
-  css: NGN.get(() => {
-    return NGN.nodelike ? '' : 'font-weight: bold;'
-  }),
-
-  /**
    * @method isFn
    * A shortcut method for determining if a variable is a function.
    * This is useful for identifying the existance of callback methods.
@@ -641,7 +661,7 @@ Object.defineProperties(NGN, {
   /**
    * @method wrapClass
    * Executes a **synchronous** method before returning an instantiated class.
-   * In other words, it runs a function first, then returns the equivalent of
+   * It runs a function first, then returns the equivalent of
    * `new MyClass(...)`. This is primarily designed for displaying warnings,
    * but can also be used for other operations like migration layers.
    * @param {function} preMethod
@@ -666,12 +686,12 @@ Object.defineProperties(NGN, {
    * @param {string} [message='The method has been deprecated.']
    * The warning displayed to the user.
    */
-  deprecate: NGN.privateconst(function (fn, message='The method has been deprecated.') {
+  deprecate: NGN.privateconst(function (fn, message = 'The method has been deprecated.') {
     return this.wrap(() => {
       if (NGN.nodelike) {
         console.warn('DEPRECATION NOTICE: ' + message)
       } else {
-        console.warn('%cDEPRECATION NOTICE: %c' + message, NGN.css, 'font-weight: normal;')
+        console.warn('%cDEPRECATION NOTICE: %c' + message, 'font-weight: bold;', 'font-weight: normal;')
       }
     }, fn)
   }),
@@ -691,7 +711,7 @@ Object.defineProperties(NGN, {
       if (NGN.nodelike) {
         console.warn('DEPRECATION NOTICE: ' + message)
       } else {
-        console.warn('%cDEPRECATION NOTICE: %c' + message, NGN.css, 'font-weight: normal;')
+        console.warn('%cDEPRECATION NOTICE: %c' + message, 'font-weight: bold;', 'font-weight: normal;')
       }
     }, classFn)
   }),
