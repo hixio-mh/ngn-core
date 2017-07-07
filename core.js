@@ -37,12 +37,12 @@ Object.defineProperty(NGN, 'define', {
   enumerable: false,
   writable: false,
   configurable: false,
-  value: function (e, w, c, v) {
+  value: function (enumerable, writable, configurable, v) {
     return {
-      enumerable: e,
-      writable: w,
-      configurable: c,
-      value: v
+      enumerable,
+      writable,
+      configurable,
+      value
     }
   }
 })
@@ -371,6 +371,54 @@ Object.defineProperties(NGN, {
     }
 
     return null
+  }),
+
+  /**
+   * @method nullIf
+   * Returns a null value if the two specified expressions are equal.
+   * ```js
+   * if (NGN.nullIf(myvar, 'value') === null) {
+   *   console.log('Variable had a value of "value", which is considered null')
+   * }
+   *
+   * // or
+   *
+   * if (NGN.nullIf(myvar) === null) {
+   *   console.log('Empty variable whose trimmed length is 0')
+   * }
+   * ```
+   * @param {any} sourceExpression
+   * The variable or value to check.
+   * @param {any} [comparisonExpression = '']
+   * The variable or value to compare the source expression against.
+   * @returns {any}
+   * If the source expression matches the comparison expression, `null` will
+   * be returned. If they do not match, the source expression will be returned.
+   */
+  nullIf: NGN.public(function (sourceExpression, comparisonExpression) {
+    stripHiddenCharcaters = NGN.coalesce(stripHiddenCharcaters, true)
+    comparisonExpression = NGN.coalesce(comparisonExpression, '')
+
+    try {
+      // If the values aren't equal, make sure it's not due to blank values
+      // or hidden characters.
+      if (sourceExpression !== comparisonExpression) {
+        // Different data types indicate different values.
+        if (typeof sourceExpression !== typeof comparisonExpression) {
+          return sourceExpression
+        }
+
+        if (typeof sourceExpression === 'string') {
+          if (sourceExpression.trim() === comparisonExpression.trim()) {
+            return null
+          }
+        }
+      }
+
+      return null
+    } catch (e) {
+      return null
+    }
   }),
 
   /**
