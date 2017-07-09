@@ -25,10 +25,11 @@ NGN.inherit(Object.defineProperties({}, {
     const me = this
 
     this.on(deprecatedEventName, function () {
-      console.warn(deprecatedEventName + ' is deprecated.' + (!replacementEventName ? '' : 'Use ' + replacementEventName + ' instead.'))
+      console.warn(`${deprecatedEventName} is deprecated. ` + (!replacementEventName ? '' : `Use ${replacementEventName} instead.`))
 
       if (replacementEventName) {
         let args = NGN.slice(arguments)
+
         args.shift()
         args.unshift(replacementEventName)
 
@@ -50,7 +51,7 @@ NGN.inherit(Object.defineProperties({}, {
    * A value can be an object, allowing for nesting events. For example:
    *
    * ```js
-   * NGN.BUS.on('prefix.', {
+   * NGN.BUS.pool('prefix.', {
    *   deep: {
    *     nested: {
    *       eventName: function () {
@@ -66,8 +67,9 @@ NGN.inherit(Object.defineProperties({}, {
    * A callback to run after the entire pool is registered. Receives
    * a single {Object} argument containing all of the subscribers for
    * each event registered within the pool.
+   * @private
    */
-  pool: NGN.const(function (prefix, group, callback) {
+  pool: NGN.prviateconst(function (prefix, group, callback) {
     if (typeof prefix !== 'string') {
       group = prefix
       prefix = ''
@@ -76,15 +78,16 @@ NGN.inherit(Object.defineProperties({}, {
     let pool = {}
 
     for (let eventName in group) {
-      let topic = (prefix.trim() || '') + eventName
+      let topic = `${NGN.coalesceb(prefix, '')}${eventName}`
 
-      if (typeof group[eventName] === 'function') {
-        this.setMaxListeners(this.getMaxListeners() + 1)
+      if (NGN.isFn(group[eventName])) {
+        this.increaseMaxListeners()
+
         pool[eventName] = this.on(topic, group[eventName])
       } else if (typeof group[eventName] === 'object') {
         this.pool(topic + '.', group[eventName])
       } else {
-        console.warn('%c' + topic + '%c could not be pooled in the event emitter because it\'s value is not a function.', NGN.css, '')
+        console.warn('%c' + topic + '%c could not be pooled in the event emitter because it\'s value is not a function.', 'font-weight: bold;', '')
       }
     }
 
@@ -123,15 +126,34 @@ NGN.inherit(Object.defineProperties({}, {
     preventDefaultAction = NGN.coalesce(preventDefaultAction, false)
 
     return (e) => {
-      if (preventDefaultAction && typeof e.preventDefault === 'function') {
+      if (preventDefaultAction && NGN.isFn(e.preventDefault)) {
         e.preventDefault()
       }
 
-      let args = NGN.slice(arguments)//NGN.slice(arguments)
-      args.unshift(eventName)
-
-      this.emit.apply(this, args)
+      this.emit(eventName, ...arguments)
     }
+  }),
+
+  /**
+   * @method increaseMaxListeners
+   * Increase the number of maximum listeners.
+   * @param {Number} [value = 1]
+   * The number of events the max listener account will be increased by.
+   * @private
+   */
+  increaseMaxListeners: NGN.private((count = 1) => {
+    this.setMaxListeners(this.getMaxListeners() + count)
+  }),
+
+  /**
+   * @method decreaseMaxListeners
+   * Decrease the number of maximum listeners.
+   * @param {Number} [value = 1]
+   * The number of events the max listener account will be decreased by.
+   * @private
+   */
+  decreaseMaxListeners: NGN.private((count = 1) => {
+    this.setMaxListeners(this.getMaxListeners() - count)
   }),
 
   /**
@@ -158,7 +180,7 @@ NGN.inherit(Object.defineProperties({}, {
    * Returns an object with a single `remove()` method.
    */
   forward: NGN.const(function (eventName, triggers, payload) {
-    triggers = typeof triggers === 'string' ? [triggers] : triggers
+    triggers = NGN.forceArray(triggers)
 
     let me = this
     let listener = function () {
@@ -169,30 +191,21 @@ NGN.inherit(Object.defineProperties({}, {
       }
 
       for (let trigger in triggers) {
-        let argList = args.slice()
-        argList.unshift(triggers[trigger])
-        me.emit.apply(me, argList)
+        me.emit(triggers[trigger], ...args)
       }
     }
 
-    this.setMaxListeners(this.getMaxListeners() + 1)
+    this.increaseMaxListeners()
     this.on(eventName, listener)
 
     // Provide handle back for removal of topic
     return {
       remove: () => {
-        this.setMaxListeners(this.getMaxListeners() - 1)
+        this.decreaseMaxListeners()
         this.off(eventName, listener)
       }
     }
   }),
-
-  /**
-   * @method bind
-   * Replaced by #forward.
-   * @deprecated
-   */
-  bind: NGN.privateconst(NGN.deprecate(this.forward, 'NGN.BUS.bind is now NGN.BUS.forward')),
 
   /**
    * @method delayEmit
@@ -218,16 +231,16 @@ NGN.inherit(Object.defineProperties({}, {
    *
    * // When the user is modified, save the data.
    * user.on('field.update', function () {
-   * 	 // Wait 300 milliseconds to trigger the save event
+   *   // Wait 300 milliseconds to trigger the save event
    *   NGN.BUS.delayEmit('user.save', 300)
    * })
    *
    * // Save the user using an API
    * NGN.BUS.on('user.save', function () {
-   * 	 NGN.NET.put({
-   * 	   url: 'https://my.api.com/user',
-   * 	   json: user.data
-   * 	 })
+   *   NGN.NET.put({
+   *     url: 'https://my.api.com/user',
+   *     json: user.data
+   *   })
    * })
    *
    * // Modify the record attributes (which are blank by default)
@@ -278,17 +291,10 @@ NGN.inherit(Object.defineProperties({}, {
 
       this.queued[eventName] = setTimeout(() => {
         delete this.queued[eventName]
-        this.emit.apply(this, args)
+        this.emit(...args)
       }, delay)
     }
   }),
-
-  /**
-   * @method queue
-   * Replaced by #delayEmit.
-   * @deprecated
-   */
-  queue: NGN.privateconst(NGN.deprecate(this.delayEmit, 'NGN.BUS.queue is now NGN.BUS.delayEmit')),
 
   /**
    * @method funnel
@@ -353,13 +359,12 @@ NGN.inherit(Object.defineProperties({}, {
    * ```
    */
   funnel: NGN.const(function (eventCollection, triggerEventName, payload = null) {
-    if (!Array.isArray(eventCollection)) {
-      throw new Error('NGN.BUS.bindEvents expected an array of events, but received a(n) ' + typeof eventCollection)
+    if (NGN.typeof(eventCollection) !== 'array') {
+      throw new Error(`NGN.BUS.funnel expected an array of events, but received a(n) ${NGN.typeof(eventCollection)}`)
     }
 
     eventCollection = NGN.dedupe(eventCollection)
 
-    let me = this
     let key = this.getInternalCollectionId(this.collectionQueue)
 
     this.collectionQueue[key] = {}
@@ -368,23 +373,25 @@ NGN.inherit(Object.defineProperties({}, {
       masterqueue: NGN.const(eventCollection),
       remainingqueue: NGN.private(eventCollection),
       eventName: NGN.const(triggerEventName),
-      remove: NGN.const(function () {
-        let evts = me.collectionQueue[key].masterqueue.slice()
+      remove: NGN.const(() => {
+        let events = this.collectionQueue[key].masterqueue.slice()
 
-        delete me.collectionQueue[key]
+        delete this.collectionQueue[key]
 
-        evts.forEach(function (evtName) {
-          me.setMaxListeners(me.getMaxListeners() - 1)
-          me.off(evtName, me.handleCollectionTrigger(evtName, key))
-        })
+        for (let name in events) {
+          this.decreaseMaxListeners()
+          this.off(name, this.handleCollectionTrigger(name, key))
+        }
       }),
       payload: NGN.const(payload)
     })
 
-    eventCollection.forEach((evt) => {
-      me.setMaxListeners(me.getMaxListeners() + 1)
-      this.on(evt, this.handleCollectionTrigger(evt, key))
-    })
+    for (let event in eventCollection) {
+      this.increaseMaxListeners()
+      this.on(event, this.handleCollectionTrigger(event, key))
+    }
+
+    key = null
 
     return this.collectionQueue[key]
   }),
@@ -401,11 +408,11 @@ NGN.inherit(Object.defineProperties({}, {
     let rand = Math.random().toString()
     let key = Object.keys(collection).length + 1
 
-    while (collection.hasOwnProperty(key.toString() + time + rand)) {
+    while (collection.hasOwnProperty(`${key.toString()}${time}${rand}`)) {
       key++
     }
 
-    return key.toString() + time + rand
+    return `${key.toString()}${time}${rand}`
   }),
 
   /**
@@ -457,7 +464,7 @@ NGN.inherit(Object.defineProperties({}, {
   funnelOnce: NGN.const(function (eventCollection, triggerEventName, payload = null) {
     let collection = this.funnel(eventCollection, triggerEventName, payload)
 
-    this.setMaxListeners(this.getMaxListeners() + 1)
+    this.increaseMaxListeners()
     this.once(triggerEventName, () => {
       collection.remove()
       collection = null
@@ -506,8 +513,7 @@ NGN.inherit(Object.defineProperties({}, {
       throw new Error('The threshold event name must be a string (received ' + (typeof thresholdEventName) + ')')
     }
 
-    let me = this
-    let key = this.getInternalCollectionId(this.thresholdQueue) + limit.toString()
+    let key = `${this.getInternalCollectionId(this.thresholdQueue)}${limit.toString()}`
 
     this.thresholdQueue[key] = {}
 
@@ -517,18 +523,18 @@ NGN.inherit(Object.defineProperties({}, {
       limit: NGN.const(limit),
       count: NGN.private(0),
       finalEventName: NGN.const(finalEventName),
-      remove: NGN.const(function () {
-        let evt = me.thresholdQueue[key].eventName
+      remove: NGN.const(() => {
+        let event = this.thresholdQueue[key].eventName
 
-        delete me.thresholdQueue[key]
+        delete this.thresholdQueue[key]
 
-        me.setMaxListeners(me.getMaxListeners() - 1)
-        me.off(evt, me.handleThresholdTrigger(key))
+        this.decreaseMaxListeners()
+        this.off(event, this.handleThresholdTrigger(key))
       }),
       payload: NGN.const(payload)
     })
 
-    this.setMaxListeners(this.getMaxListeners() + 1)
+    this.increaseMaxListeners()
     this.on(thresholdEventName, this.handleThresholdTrigger(key))
 
     return this.thresholdQueue[key]

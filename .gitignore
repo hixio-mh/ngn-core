@@ -1,0 +1,7 @@
+*.log
+_*
+.*
+node_modules
+!.gitignore
+!.npmignore
+!.codeclimate.yml

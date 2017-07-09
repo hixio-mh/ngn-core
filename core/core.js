@@ -4,6 +4,25 @@
  * @class NGN
  * @singleton
  */
+// Establish a globally recognized namespace for browser or node-like environment.
+try {
+  window.NGN = {}
+  Object.defineProperty(NGN, 'global', {
+    enumerable: false,
+    get: () => {
+      return window
+    }
+  })
+} catch (e) {
+  global.NGN = {}
+  Object.defineProperty(NGN, 'global', {
+    enumerable: false,
+    get: () => {
+      return global
+    }
+  })
+}
+
 /**
   * @method define
   * Create an object definition for a property.
@@ -37,7 +56,7 @@ Object.defineProperty(NGN, 'define', {
   enumerable: false,
   writable: false,
   configurable: false,
-  value: function (enumerable, writable, configurable, v) {
+  value: function (enumerable, writable, configurable, value) {
     return {
       enumerable,
       writable,
@@ -220,11 +239,11 @@ Object.defineProperties(NGN, {
    * Any valid JavaScript function that accepts a single argument (value).
    * @private
    */
-  getset: NGN.define(false, false, false, (getter, setter) => {
+  getset: NGN.define(false, false, false, (getterFn, setterFn) => {
     return {
       enumerable: false,
-      get: getter,
-      set: setter
+      get: getterFn,
+      set: setterFn
     }
   })
 })
@@ -278,7 +297,12 @@ Object.defineProperties(NGN, {
    * @private
    */
   extend: NGN.privateconst(function (attribute, descriptor) {
-    Object.defineProperty(this, attribute, descriptor)
+    // If no descriptor is provided, multiple properties are being defined.
+    if (typeof attribute === 'object') {
+      Object.defineProperties(this, attribute)
+    } else {
+      Object.defineProperty(this, attribute, descriptor)
+    }
   }),
 
   /**
@@ -356,28 +380,6 @@ Object.defineProperties(NGN, {
   }),
 
   /**
-   * @method converge
-   * Provides a basic coalesce. Expects the first parameter to be a boolean
-   * value. `true` will wrap arguments in a nullIf operator. `false` will not.
-   * @private
-   */
-  converge: NGN.private(function () {
-    for (let arg = 1; arg < arguments.length; arg++) {
-      try {
-        if (arguments[arg] !== undefined && (
-          arguments[0]
-          ? NGN.nullIf(arguments[arg])
-          : arguments[arg]) !== null
-        ) {
-          return arguments[arg]
-        }
-      } catch (e) {}
-    }
-
-    return null
-  })
-
-  /**
    * @method nullIf
    * Returns a null value if the two specified expressions are equal.
    * ```js
@@ -413,6 +415,8 @@ Object.defineProperties(NGN, {
           if (sourceExpression.trim() === comparisonExpression.trim()) {
             return null
           }
+
+          return sourceExpression
         }
       }
 
@@ -420,6 +424,37 @@ Object.defineProperties(NGN, {
     } catch (e) {
       return null
     }
+  }),
+
+  // Private alias for nullIf
+  nullif: NGN.get(() => {
+    return this.nullIf(...arguments)
+  }),
+
+  /**
+   * @method converge
+   * Provides a basic coalesce. Expects the first parameter to be a boolean
+   * value. `true` will wrap arguments in a nullIf operator. `false` will not.
+   * @private
+   */
+  converge: NGN.private(function () {
+    for (let arg = 1; arg < arguments.length; arg++) {
+      try {
+        if (arguments[arg] !== undefined &&
+          (
+            arguments[0]
+            ? NGN.nullIf(arguments[arg])
+            : arguments[arg]
+          ) !== null
+        ) {
+          if (arguments[arg] !== undefined) {
+            return arguments[arg]
+          }
+        }
+      } catch (e) {}
+    }
+
+    return null
   }),
 
   /**
@@ -433,7 +468,7 @@ Object.defineProperties(NGN, {
    * Returns the first non-null/defined value. If non exist, `null` is retutned.
    */
   coalesce: NGN.public(function () {
-    NGN.converge(false, ...arguments)
+    return NGN.converge(false, ...arguments)
   }),
 
   /**
@@ -444,7 +479,7 @@ Object.defineProperties(NGN, {
    * Any number of arguments can be passed to this method.
    */
   coalesceb: NGN.public(function () {
-    NGN.converge(true, ...arguments)
+    return NGN.converge(true, ...arguments)
   }),
 
   /**
@@ -494,19 +529,38 @@ Object.defineProperties(NGN, {
    * @return {string}
    * Returns the type (all lower case).
    */
-  typeof: NGN.privateconst((el) => {
-    let value = Object.prototype.toString.call(el).split(' ')[1].replace(/\]|\[/gi, '').toLowerCase()
+  typeof: NGN.const((el) => {
+    let value = Object.prototype.toString.call(el).split(' ')[1].replace(/[^A-Za-z]/gi, '').toLowerCase()
 
     if (value === 'function') {
       if (!el.name) {
-        return el.toString().replace(/\n/gi, '').replace(/^function\s|\(.*$/mgi,'').toLowerCase()
+        return NGN.coalesceb(el.toString().replace(/\n/gi, '').replace(/^function\s|\(.*$/mgi, '').toLowerCase(), 'function')
       } else {
-        value = el.name || 'function'
+        value = NGN.coalesceb(el.name, 'function')
       }
     }
 
-    return value.toLowerCase();
-   }),
+    return value.toLowerCase()
+  }),
+
+   /**
+    * @method forceArray
+    * Forces a value to become an array if it is not already one. For example:
+    *
+    * ```js
+    * let x = 'value'
+    *
+    * x = NGN.forceArray(x)
+    *
+    * console.log(x) // Outputs ['value']
+    * ```
+    * @param {any} expression
+    * The value being forced to be an array.
+    * @private
+    */
+  forceArray: NGN.private((value) => {
+    return NGN.typeof(value) === 'array' ? value : [value]
+  }),
 
   /**
    * @method stack
@@ -548,7 +602,7 @@ Object.defineProperties(NGN, {
    *
    * ```
    * {
-   * 	 path: 'path/to/file.js:127:14'
+   *   path: 'path/to/file.js:127:14'
    *   file: 'path/to/file.js',
    *   line: 127,
    *   column: 14
@@ -575,8 +629,8 @@ Object.defineProperties(NGN, {
   }),
 
   stack: NGN.get(function () {
-    const originalStack = (new Error).stack.split('\n')
-    let stack = (new Error).stack.split('\n') || []
+    const originalStack = (new Error).stack.split('\n') // eslint-disable-line
+    let stack = (new Error()).stack.split('\n') || []
     let fnRegex = /at.*\(/gi
 
     stack = stack.filter((item) => {
@@ -649,6 +703,7 @@ Object.defineProperties(NGN, {
    * method receives the same arguments passed to the class.
    * @param {function} method
    * The function to wrap.
+   * @return {function}
    * @private
    */
   wrap: NGN.privateconst(function (preFn, fn) {
@@ -669,25 +724,35 @@ Object.defineProperties(NGN, {
    * method receives the same arguments passed to the class.
    * @param {function} class
    * The class to wrap.
+   * @return {Class}
    * @private
    */
-  wrapClass: NGN.privateconst(function (preFn, classFn) {
+  wrapClass: NGN.privateconst(function (preFn, ClassFn) {
     return function () {
       preFn(...arguments)
-      return new classFn(...arguments)
+      return new ClassFn(...arguments)
     }
   }),
 
   /**
    * @method deprecate
-   * Logs a warning indicating the method is deprecated.
+   * Fires an event (if NGN.BUS is available) or logs a warning indicating the
+   * method is deprecated.
    * @param {function} method
    * The method to return/execute.
    * @param {string} [message='The method has been deprecated.']
    * The warning displayed to the user.
+   * @return {function}
+   * @fires DEPRECATED.METHOD
+   * Fires `DEPRECATED.METHOD` on the NGN.BUS. The message is delivered to
+   * the event handler.
    */
   deprecate: NGN.privateconst(function (fn, message = 'The method has been deprecated.') {
     return this.wrap(() => {
+      if (NGN.BUS) {
+        return NGN.BUS.emit('DEPRECATED.METHOD', message)
+      }
+
       if (NGN.nodelike) {
         console.warn('DEPRECATION NOTICE: ' + message)
       } else {
@@ -705,9 +770,17 @@ Object.defineProperties(NGN, {
    * The class to return/execute.
    * @param {string} [message='The class has been deprecated.']
    * The warning displayed to the user.
+   * @fires DEPRECATED.CLASS
+   * Fires `DEPRECATED.CLASS` on the NGN.BUS. The message is delivered to
+   * the event handler.
+   * @return {Class}
    */
-  deprecateClass: NGN.privateconst(function (classFn, message='The class has been deprecated.') {
+  deprecateClass: NGN.privateconst(function (classFn, message = 'The class has been deprecated.') {
     return this.wrapClass(() => {
+      if (NGN.BUS) {
+        return NGN.BUS.emit('DEPRECATED.CLASS', message)
+      }
+
       if (NGN.nodelike) {
         console.warn('DEPRECATION NOTICE: ' + message)
       } else {
@@ -728,16 +801,18 @@ Object.defineProperties(NGN, {
    * The object to check.
    * @param {String[]} attributes
    * A list of attributes to check for.
+   * @throws {MissingNgnDependencyError}
+   * Throws an error if the namespace is missing an attribute dependency.
    * @private
    */
   needs: NGN.private(function (namespace, ...attributes) {
     if (typeof namespace !== 'object') {
-      throw new Error('NGN.uses() requires an object.')
+      throw new Error('NGN.needs() requires an object.')
     }
 
     let missing = []
 
-    for (let value in attributes) {
+    for (let value of attributes) {
       if (!namespace.hasOwnProperty(value)) {
         missing.push(value)
       }
@@ -745,7 +820,7 @@ Object.defineProperties(NGN, {
 
     // Throw an error if there are any missing attributes.
     if (missing.length > 0) {
-      throw new MissingDependencyError(`Missing ${namespace.constructor.name} dependencies: ${missing.join(', ')}`.replace(/\s{2,100}/gi, ' '))
+      throw new MissingNgnDependencyError(`Missing ${namespace.constructor.name} dependencies: ${missing.join(', ')}`.replace(/\s{2,100}/gi, ' '))
     }
   }),
 
@@ -769,5 +844,82 @@ Object.defineProperties(NGN, {
     Object.defineProperty(namespace, name, NGN.get(() => {
       return value
     }))
+  }),
+
+  /**
+   * @method createException
+   * Create a custom global exception (custom error).
+   * @param {Object} config
+   * The configuration of the new error.
+   * @param {String} [config.name=NgnError]
+   * The pretty name of the exception. Alphanumeric characters only (underscore is acceptable).
+   * @param {String} [config.type=TypeError]
+   * The type of error. This is commonly `TypeError` or `ReferenceError`, but
+   * it can be any custom value.
+   * @param {String} [config.severity=minor]
+   * A descriptive "level" indicating how critical the error is.
+   * @param {String} [config.message=Unknown Error]
+   * The default message to output when none is specified.
+   * @param {Object} [config.custom]
+   * Provide a key/value object of custom attributes for the error.
+   * There are two "special" custom attributes: `help` and `cause`.
+   * When provided, these will be written to stdout whenever the error's
+   * stack is viewed.
+   *
+   * For example:
+   *
+   * ```js
+   * NGN.createException({
+   *   name: 'Test Problem',
+   *   message: 'An example error.',
+   *   custom: {
+   *     help: 'Remove the throw statement.',
+   *     cause: 'Testing the error output.'
+   *   }
+   * });
+   *
+   * throw TestProblem()
+   * ```
+   * The code above generates the following console output:
+   *
+   * ```sh
+   * Testing the error output.
+   * Remove the throw statement.
+   * /path/to/test.js:12
+   *    throw TestProblem();
+   *    ^
+   *
+   * TestProblem: An example error.
+   *    at null._onTimeout (/path/to/test.js:12:11)
+   *    at Timer.listOnTimeout (timers.js:92:15)
+   * ```
+   */
+  createException: NGN.const(function (config) {
+    config = config || {}
+    config = typeof config === 'string' ? { message: config } : config
+    config.name = config.name || 'NgnError'
+    config.name = config.name.replace(/[^a-zA-Z0-9_]/gi, '')
+
+    // Create the error as a function
+    NGN.global[config.name] = function () {
+      if (arguments.length > 0) {
+        config.message = arguments[0]
+      }
+
+      return new NgnCustomException(config)
+    }
   })
+})
+
+// Standard NGN Exceptions
+NGN.createException({
+  name: 'MissingNgnDependencyError',
+  type: 'MissingNgnDependencyError',
+  severity: 'critical',
+  message: 'An NGN dependency is missing or could not be found.',
+  category: 'programmer',
+  custom: {
+    help: 'Include the missing library.',
+    cause: 'A required dependency was not included, or it was not included in the correct sequence.'
+  }
 })

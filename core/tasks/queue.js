@@ -177,7 +177,6 @@ NGN.Tasks = function () {
         throw new Error('No processing method defined for step ' + (parseInt(this.steps.length) + 1) + '.')
       }
 
-      const me = this
       const queue = new NGN.Task({
         name: name,
         callback: fn,
