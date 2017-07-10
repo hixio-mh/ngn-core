@@ -438,6 +438,18 @@ Object.defineProperties(NGN, {
    * @private
    */
   converge: NGN.private(function () {
+    if (arguments.length < 2) {
+      return null
+    } else if (arguments.length === 2) {
+      if (arguments[1] === undefined) {
+        return null
+      } else if (arguments[0]) {
+        return NGN.nullIf(arguments[1])
+      } else {
+        return arguments[1]
+      }
+    }
+
     for (let arg = 1; arg < arguments.length; arg++) {
       try {
         if (arguments[arg] !== undefined &&
@@ -559,6 +571,10 @@ Object.defineProperties(NGN, {
     * @private
     */
   forceArray: NGN.private((value) => {
+    if (NGN.coalesce(value) === null) {
+      return new Array()
+    }
+
     return NGN.typeof(value) === 'array' ? value : [value]
   }),
 
@@ -795,7 +811,7 @@ Object.defineProperties(NGN, {
    * This is designed to check for namespace existance.
    *
    * ```js
-   * NGN.uses(NGN, 'DOM','BUS', 'NET', 'JUNK') // Throws an error because "JUNK" doesn't exist.
+   * NGN.needs('DOM','BUS', 'NET', 'JUNK') // Throws an error because "JUNK" doesn't exist.
    * ```
    * @param {Object} namespace
    * The object to check.
@@ -805,22 +821,199 @@ Object.defineProperties(NGN, {
    * Throws an error if the namespace is missing an attribute dependency.
    * @private
    */
-  needs: NGN.private(function (namespace, ...attributes) {
-    if (typeof namespace !== 'object') {
-      throw new Error('NGN.needs() requires an object.')
-    }
+  needs: NGN.private(function () {
+    let missing = this.getObjectMissingProperties(NGN, ...arguments)
 
-    let missing = []
-
-    for (let value of attributes) {
-      if (!namespace.hasOwnProperty(value)) {
-        missing.push(value)
-      }
+    if (missing.length === 0) {
+      return
     }
 
     // Throw an error if there are any missing attributes.
     if (missing.length > 0) {
-      throw new MissingNgnDependencyError(`Missing ${namespace.constructor.name} dependencies: ${missing.join(', ')}`.replace(/\s{2,100}/gi, ' '))
+      throw new MissingNgnDependencyError(`Missing NGN dependencies: ${missing.join(', ')}`.replace(/\s{2,100}/gi, ' '))
+    }
+  }),
+
+  /**
+   * @method getObjectMissingPropertyNames
+   * Given a list, returns which list items are not present in an
+   * object's enumerable properties.
+   *
+   * ```js
+   * let obj = { a: 1, b: 2 }
+   * let missing = NGN.getObjectMissingPropertyNames(obj, 'a', 'b', 'c')
+   *
+   * console.log(missing) // Outputs ['c']
+   * ```
+   * @param {Object} object
+   * The object to check.
+   * @return {String[]}
+   * @private
+   */
+  getObjectMissingPropertyNames: NGN.private(function () {
+    let missing = []
+    let properties = Object.keys(arguments[0])
+
+    for (let i = 1; i < arguments.length; i++) {
+      if (properties.indexOf(arguments[i]) < 0) {
+        missing.push(arguments[i])
+      }
+    }
+
+    return missing
+  }),
+
+  /**
+   * @method getObjectExtraneousPropertyNames
+   * Given a list, returns which enumerable object properties
+   * are not in the list.
+   *
+   * ```js
+   * let obj = { a: 1, b: 2, d: 4 }
+   * let extra = NGN.getObjectExtraneousPropertyNames(obj, 'a', 'b', 'c')
+   *
+   * console.log(extra) // Outputs ['d']
+   * ```
+   * @param {Object} object
+   * The object to check.
+   * @return {String[]}
+   * @private
+   */
+  getObjectExtraneousPropertyNames: NGN.private(function () {
+    let extra = []
+    let properties = Object.keys(arguments[0])
+
+    for (let i = 1; i < arguments.length; i++) {
+      if (properties.indexOf(arguments[i]) < 0) {
+        extra.push(arguments[i])
+      }
+    }
+
+    return extra
+  }),
+
+  /**
+   * @method objectHasAll
+   * Determines whether the specified object has _all_ of the provided properties.
+   * This only accounts for enumerable properties. It also decorates the Boolean
+   * result with a property called `properties`, which contains any missing property
+   * names.
+   *
+   * **Example**
+   * ```js
+   * let check = NGN.objectHasAll(NGN, 'BUS', 'NET')
+   *
+   * console.log(check) // Outputs: true
+   * ```
+   *
+   * ```js
+   * let check = NGN.objectHasAll(NGN, 'BUS', 'NET', 'JUNK')
+   *
+   * console.log(check) // Outputs: false
+   * console.log(check.properties) // Outputs ['JUNK']
+   * ```js
+   * @param {Object} object
+   * The object to check.
+   * @return {Boolean}
+   */
+  objectHasAll: NGN.private(function () {
+    let properties = Object.keys(arguments[0])
+
+    for (let i = 1; i < arguments.length; i++) {
+      if (properties.indexOf(arguments[i]) < 0) {
+        return false
+      }
+    }
+
+    return true
+  }),
+
+  /**
+   * @method objectHasAny
+   * Determines whether the specified object has _any_ of the requested properties.
+   * This only accounts for enumerable properties.
+   *
+   * **Example**
+   * ```js
+   * let check = NGN.objectHasAny(NGN, 'BUS', 'NET', 'MORE')
+   *
+   * console.log(check) // Outputs: true
+   * ```
+   *
+   * ```js
+   * let check = NGN.objectHasAny(NGN, 'JUNK1', 'JUNK2', 'JUNK3')
+   *
+   * console.log(check) // Outputs: false
+   * ```js
+   * @param {Object} object
+   * The object to check.
+   * @return {Boolean}
+   */
+  objectHasAny: NGN.private(function () {
+    let properties = Object.keys(arguments[0])
+
+    for (let i = 1; i < arguments.length; i++) {
+      if (properties.indexOf(arguments[i]) >= 0) {
+        return true
+      }
+    }
+
+    return false
+  }),
+
+  /**
+   * @method objectHasExactly
+   * Determines whether the specified object has _only_ the requested properties.
+   * This only accounts for enumerable properties.
+   *
+   * **Example**
+   * ```js
+   * let obj = { a: 1, b: 2 }
+   * let check = NGN.objectHasExactly(obj, 'a', 'b')
+   *
+   * console.log(check) // Outputs: true
+   * ```
+   *
+   * ```js
+   * let obj = { a: 1, b: 2, d: 4 }
+   * let check = NGN.objectHasExactly(obj, 'a', 'b', 'c')
+   *
+   * console.log(check) // Outputs: false
+   * ```js
+   * @param {Object} object
+   * The object to check.
+   * @return {Boolean}
+   */
+  objectHasExactly: NGN.private(function () {
+    if (this.getObjectMissingPropertyNames(arguments[0])) {
+      return false
+    }
+
+    let properties = Object.keys(arguments[0])
+    let args = NGN.slice(arguments)
+
+    args.unshift()
+
+    for (let p = 0; p < properties.length; p++) {
+      if (args.indexOf(properties[p]) < 0) {
+        return false
+      }
+    }
+
+    return true
+  }),
+
+  /**
+   * @method objectRequires
+   * This is the same as #objectHasAll, but will throw an
+   * error if the object is missing any properties.
+   * @throws Error
+   */
+  objectRequires: NGN.private(function () {
+    let check = this.objectHasAll(...arguments)
+
+    if (!check) {
+      throw new Error(`${arguments[0].constructor.name} is missing the following attributes: ${check.missing.join(', ')}`)
     }
   }),
 

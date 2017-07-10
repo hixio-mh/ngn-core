@@ -429,35 +429,57 @@ test('NGN.createAlias', (t) => {
   t.end()
 })
 
-// ALL CUSTOM EXCEPTION-RELATED TESTS BELOW HERE (to prevent unit test confusion)
-test('NGN.needs', (t) => {
+test('NGN.objectHasAll', (t) => {
   let obj = {
     a: 1,
     b: 2,
-    c: 3
+    c: 3,
+    e: 5
   }
 
+  let check = NGN.objectHasAll(obj, 'a', 'b', 'c')
+  let badCheck = NGN.objectHasAll(obj, 'a', 'b', 'c', 'd')
+
+  t.ok(
+    NGN.typeof(check) === 'boolean' &&
+    check
+    && , 'Responds with a proper boolean value.')
+  t.ok(NGN.typeof(badCheck) === 'boolean' && !badCheck, 'Responds with a proper boolean value.')
+
+  t.end()
+})
+
+test('NGN.objectHasAny', (t) => {
+  let obj = {
+    a: 1,
+    b: 2,
+    c: 3,
+    e: 5
+  }
+
+  let check = NGN.objectHasAny(obj, 'a', 'b', 'c', 'd')
+  let badCheck = NGN.objectHasAll(obj, 'x', 'y', 'z')
+
+  t.ok(NGN.typeof(check) === 'boolean' && check, 'Responds with a proper boolean value.')
+  t.ok(!badCheck, 'Responds with false when none of the specificed properties exist.')
+
+  t.end()
+})
+
+// ALL CUSTOM EXCEPTION-RELATED TESTS BELOW HERE (to prevent unit test confusion)
+test('NGN.needs', (t) => {
   try {
-    NGN.needs(obj, 'a', 'b', 'c')
+    NGN.needs('private', 'const', 'define')
     t.pass('Exact match does not throw a MissingNgnDependencyError.')
   } catch (e) {
     t.fail('Exact match does not throw a MissingNgnDependencyError.')
   }
 
   try {
-    NGN.needs(obj, 'a', 'b', 'c', 'd')
+    NGN.needs('private', 'const', 'define', 'JUNK')
     t.fail('Missing any attribute throws a MissingNgnDependencyError.')
   } catch (e) {
     t.pass('Missing any attribute throws a MissingNgnDependencyError.')
-  }
-
-  obj.d = 4
-
-  try {
-    NGN.needs(obj, 'a', 'b', 'c')
-    t.pass('Matching all attributes with extra attributes does not throw a MissingNgnDependencyError.')
-  } catch (e) {
-    t.fail('Matching all attributes with extra attributes does not throw a MissingNgnDependencyError.')
   }
 
   t.end()
