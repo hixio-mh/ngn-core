@@ -56,6 +56,9 @@ class NgnDataStore extends NGN.EventEmitter {
        * Set to `false` to prevent duplicate records from being added.
        * If a duplicate record is added, it will be ignored and an
        * error will be thrown.
+       * @warning Duplicate checking can be computationally expensive
+       * and slow in larger data sets. This is best used in small
+       * data sets with < 100 records.
        */
       allowDuplicates: NGN.public(NGN.coalesce(cfg.allowDuplicates, true)),
 
@@ -65,7 +68,7 @@ class NgnDataStore extends NGN.EventEmitter {
        * If this is not set, it will default to the value of #allowDuplicates.
        * If #allowDuplicates is not defined either, this will be `true`
        */
-      errorOnDuplicate: NGN.const(NGN.coalesce(cfg.errorOnDuplicate, cfg.allowDuplicates, true)),
+      errorOnDuplicate: NGN.const(NGN.coalesce(cfg.errorOnDuplicate, cfg.allowDuplicates, false)),
 
       /**
        * @cfgproperty {boolean} [autoRemoveExpiredRecords=true]
@@ -307,9 +310,13 @@ class NgnDataStore extends NGN.EventEmitter {
    * @readonly
    */
   get data () {
-    return this._data.map(function (record) {
-      return record.data
-    })
+    let result = []
+
+    for (let i = 0; i < this._data.length; i++) {
+      result.push(this._data[i].data)
+    }
+
+    return result
   }
 
   /**
@@ -318,9 +325,13 @@ class NgnDataStore extends NGN.EventEmitter {
    * (data + virtuals of each model).
    */
   get representation () {
-    return this._data.map((record) => {
-      return record.representation
-    })
+    let result = []
+
+    for (let i = 0; i < this._data.length; i++) {
+      result.push(this._data[i].representation)
+    }
+
+    return result
   }
 
   /**
@@ -394,7 +405,7 @@ class NgnDataStore extends NGN.EventEmitter {
    * @return {NGN.DATA.Model}
    * Returns the new record.
    */
-  add (data, suppressEvent) {
+  add (data, suppressEvent, fast = false) {
     let record
 
     // Prevent creation if it will exceed maximum record count.
@@ -403,12 +414,19 @@ class NgnDataStore extends NGN.EventEmitter {
     }
 
     if (!(data instanceof NGN.DATA.Entity)) {
-      try { data = JSON.parse(data) } catch (e) {}
+      try {
+        if (typeof data === 'string') {
+          data = JSON.parse(data)
+        }
+      } catch (e) {}
+
       if (typeof data !== 'object') {
         throw new Error('Cannot add a non-object record.')
       }
+
       if (this.model) {
-        record = new this.model(data) // eslint-disable-line new-cap
+        record = new this.model() // eslint-disable-line new-cap
+        record.load(data, fast)
       } else {
         record = data
       }
@@ -420,13 +438,14 @@ class NgnDataStore extends NGN.EventEmitter {
       record._store = this
     }
 
-    let dupe = this.isDuplicate(record)
-    if (dupe) {
-      this.emit('record.duplicate', record)
-      if (!this.allowDuplicates) {
+    if (!this.allowDuplicates) {
+      if (this.isDuplicate(record)) {
+        this.emit('record.duplicate', record)
+
         if (this.errorOnDuplicate) {
           throw new Error('Cannot add duplicate record (allowDuplicates = false).')
         }
+
         return
       }
     }
@@ -551,9 +570,14 @@ class NgnDataStore extends NGN.EventEmitter {
     if (this._data.indexOf(record) >= 0) {
       return false
     }
-    return this._data.filter(function (rec) {
-      return rec.checksum === record.checksum
-    }).length > 0
+
+    for (let i = 0; i < this._data.length; i++) {
+      if (this._data[i].checksum === record.checksum) {
+        return true
+      }
+    }
+
+    return false
   }
 
   /**
@@ -616,16 +640,18 @@ class NgnDataStore extends NGN.EventEmitter {
    * Bulk load data.
    * @param {string} eventName
    * @param {array} data
+   * @param {boolean} [fast=false]
+   * Load the data quickly (ignores modification checksums).
    * @private
    */
-  bulk (event, data) {
+  bulk (event, data, fast = false) {
     this._loading = true
 
     let resultSet = []
 
-    data.forEach(record => {
-      resultSet.push(this.add(record, true))
-    })
+    for (let i = 0; i < data.length; i++) {
+      resultSet.push(this.add(data[i], true))
+    }
 
     this._loading = false
     this._deleted = []
@@ -654,9 +680,9 @@ class NgnDataStore extends NGN.EventEmitter {
    * NGN.DATA.Model or a JSON object that can be applied
    * to the store's #model.
    */
-  load () {
+  load (fast = false) {
     let array = Array.isArray(arguments[0]) ? arguments[0] : NGN.slice(arguments)
-    this.bulk('load', array)
+    this.bulk('load', array, fast)
   }
 
   /**
@@ -664,10 +690,10 @@ class NgnDataStore extends NGN.EventEmitter {
    * Reload data. This is the same as running #clear followed
    * by #load.
    */
-  reload (data) {
+  reload (data, fast = false) {
     this.clear()
     let array = Array.isArray(arguments[0]) ? arguments[0] : NGN.slice(arguments)
-    this.bulk('reload', array)
+    this.bulk('reload', array, fast)
   }
 
   /**
@@ -978,11 +1004,14 @@ class NgnDataStore extends NGN.EventEmitter {
       case 'function':
         resultSet = this._data.filter(query)
         break
+
       case 'number':
         resultSet = (query < 0 || query >= this._data.length) ? null : this._data[query]
         break
+
       case 'string':
         let indice = this.getIndices(this._data[0].idAttribute, query.trim())
+
         if (indice !== null && indice.length > 0) {
           indice.forEach(index => {
             resultSet.push(this._data[index])
@@ -997,6 +1026,7 @@ class NgnDataStore extends NGN.EventEmitter {
         resultSet = recordSet.length === 0 ? null : recordSet[0]
 
         break
+
       case 'object':
         if (query instanceof NGN.DATA.Model) {
           if (this.contains(query)) {

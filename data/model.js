@@ -982,9 +982,9 @@ class NgnDataModel extends NGN.EventEmitter {
     }
 
     // Validate data type of each attribute
-    this.datafields.forEach(function (field) {
-      me.validate(field)
-    })
+    for (let i = 0; i < this.datafields.length; i++) {
+      me.validate(this.datafields[i])
+    }
   }
 
   /**
@@ -1850,22 +1850,37 @@ class NgnDataModel extends NGN.EventEmitter {
    * will be set to `false`, as though the record has been untouched.
    * @param {object} data
    * The data to apply to the model.
+   * @param {boolean} [fast = false]
+   * By default, the load will generate a checksum for each record,
+   * which is used to identify modified records. If the application
+   * has no need to check modified records, this can be set to `true`
+   * to make the load process complete faster. Field changes will still be
+   * detected, but #modified will never return `true` because it has no
+   * point of comparison.
    */
-  load (data) {
+  load (data, fast = false) {
     data = data || {}
 
     // Handle data maps
     if (this._dataMap !== null) {
-      Object.keys(this.reverseMap).forEach((key) => {
+      let keys = Object.keys(this.reverseMap)
+
+      for (let i = 0; i < keys.length; i++) {
+        let key = keys[i]
+
         if (data.hasOwnProperty(key)) {
           data[this.reverseMap[key]] = data[key]
           delete data[key]
         }
-      })
+      }
     }
 
     // Loop through the keys and add data fields
-    Object.keys(data).forEach((key) => {
+    let attributes = Object.keys(data)
+
+    for (let x = 0; x < attributes.length; x++) {
+      let key = attributes[x]
+
       if (this.hasDataField(key)) {
         if (this.raw.hasOwnProperty(key)) {
           this.raw[key] = data[key]
@@ -1882,9 +1897,10 @@ class NgnDataModel extends NGN.EventEmitter {
           console.warn('%c' + key + '%c specified as a data field but is not defined in the model.', NGN.css, '')
         }
       }
-    })
+    }
 
-    this.setUnmodified()
+    // !fast && this.setUnmodified()
+    !fast && this.setUnmodified()
     this.emit('load')
   }
 }
