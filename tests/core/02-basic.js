@@ -429,6 +429,37 @@ test('NGN.createAlias', (t) => {
   t.end()
 })
 
+test('NGN.getObjectMissingPropertyNames', (t) => {
+  let obj = {
+    a: 1,
+    b: 2,
+    c: 3,
+    e: 5
+  }
+
+  let missing = NGN.getObjectMissingPropertyNames(obj, 'a', 'b', 'c', 'd', 'e', 'f')
+  t.ok(missing[0] === 'd' && missing[1] === 'f', 'Returns list of missing attributes.')
+
+  t.end()
+})
+
+test('NGN.getObjectExtraneousPropertyNames', (t) => {
+  let obj = {
+    a: 1,
+    b: 2,
+    c: 3,
+    d: 4,
+    e: 5,
+    f: 6
+  }
+
+  let extra = NGN.getObjectExtraneousPropertyNames(obj, 'a', 'b', 'c', 'e')
+
+  t.ok(extra[0] === 'd' && extra[1] === 'f', 'Returns list of extraneous attributes.')
+
+  t.end()
+})
+
 test('NGN.objectHasAll', (t) => {
   let obj = {
     a: 1,
@@ -440,11 +471,8 @@ test('NGN.objectHasAll', (t) => {
   let check = NGN.objectHasAll(obj, 'a', 'b', 'c')
   let badCheck = NGN.objectHasAll(obj, 'a', 'b', 'c', 'd')
 
-  t.ok(
-    NGN.typeof(check) === 'boolean' &&
-    check
-    && , 'Responds with a proper boolean value.')
-  t.ok(NGN.typeof(badCheck) === 'boolean' && !badCheck, 'Responds with a proper boolean value.')
+  t.ok(NGN.typeof(check) === 'boolean' && check, 'Responds with a proper true value.')
+  t.ok(NGN.typeof(badCheck) === 'boolean' && !badCheck, 'Responds with a proper false value.')
 
   t.end()
 })
@@ -458,7 +486,7 @@ test('NGN.objectHasAny', (t) => {
   }
 
   let check = NGN.objectHasAny(obj, 'a', 'b', 'c', 'd')
-  let badCheck = NGN.objectHasAll(obj, 'x', 'y', 'z')
+  let badCheck = NGN.objectHasAny(obj, 'x', 'y', 'z')
 
   t.ok(NGN.typeof(check) === 'boolean' && check, 'Responds with a proper boolean value.')
   t.ok(!badCheck, 'Responds with false when none of the specificed properties exist.')
@@ -466,12 +494,64 @@ test('NGN.objectHasAny', (t) => {
   t.end()
 })
 
+test('NGN.objectHasExactly', (t) => {
+  let obj = {
+    a: 1,
+    b: 2,
+    c: 3
+  }
+
+  let justRight = NGN.objectHasAny(obj, 'a', 'b', 'c')
+  let tooMany = NGN.objectHasAny(obj, 'a', 'b', 'c', 'd')
+  let tooFew = NGN.objectHasAny(obj, 'a', 'b')
+
+  t.ok(justRight, 'Exact match returns true.')
+  t.ok(tooMany, 'Inexact match returns false (too many).')
+  t.ok(tooFew, 'Inexact match returns false (too few).')
+
+  t.end()
+})
+
+test('NGN.objectRequires', (t) => {
+  let obj = {
+    a: 1,
+    b: 2,
+    c: 3
+  }
+
+  try {
+    NGN.objectRequires(obj, 'a', 'b', 'c')
+    t.pass('Object with correct attributes does not throw an error.')
+  } catch (e) {
+    console.error(e)
+    t.fail('Object with correct attributes throws error.')
+  }
+
+  try {
+    NGN.objectRequires(obj, 'a', 'b')
+    t.pass('Object with correct attributes does not throw an error (even if more attributes exist).')
+  } catch (e) {
+    console.error(e)
+    t.fail('Object with correct attributes throws error.')
+  }
+
+  try {
+    NGN.objectRequires(obj, 'a', 'b', 'x')
+    t.fail('Object with incorrect attributes does not throw an error.')
+  } catch (e) {
+    t.pass('Object with incorrect attributes throws an error.')
+  }
+
+  t.end()
+})
+
 // ALL CUSTOM EXCEPTION-RELATED TESTS BELOW HERE (to prevent unit test confusion)
 test('NGN.needs', (t) => {
   try {
-    NGN.needs('private', 'const', 'define')
+    NGN.needs('coalesce', 'coalesceb')
     t.pass('Exact match does not throw a MissingNgnDependencyError.')
   } catch (e) {
+    console.log(e)
     t.fail('Exact match does not throw a MissingNgnDependencyError.')
   }
 

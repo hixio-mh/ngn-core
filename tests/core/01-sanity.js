@@ -40,6 +40,8 @@ test('Method Existance', (t) => {
     'wrapClass',
     'deprecate',
     'deprecateClass',
+    'getObjectMissingPropertyNames',
+    'getObjectExtraneousPropertyNames',
     'objectHasAll',
     'objectHasAny',
     'objectHasExactly',

@@ -822,7 +822,7 @@ Object.defineProperties(NGN, {
    * @private
    */
   needs: NGN.private(function () {
-    let missing = this.getObjectMissingProperties(NGN, ...arguments)
+    let missing = NGN.getObjectMissingPropertyNames(NGN, ...arguments)
 
     if (missing.length === 0) {
       return
@@ -880,16 +880,19 @@ Object.defineProperties(NGN, {
    * @private
    */
   getObjectExtraneousPropertyNames: NGN.private(function () {
-    let extra = []
     let properties = Object.keys(arguments[0])
 
     for (let i = 1; i < arguments.length; i++) {
-      if (properties.indexOf(arguments[i]) < 0) {
+      let index = properties.indexOf(arguments[i])
+
+      if (index < 0) {
         extra.push(arguments[i])
+      } else {
+        properties.splice(index, 1)
       }
     }
 
-    return extra
+    return properties
   }),
 
   /**
@@ -1100,6 +1103,30 @@ Object.defineProperties(NGN, {
       }
 
       return new NgnCustomException(config)
+    }
+  }),
+
+  /**
+   * @method WARN
+   * This method is used to emit special warning events.
+   * Event names are prepended with `_NGN_.WARN.`, which is a notation
+   * recognized by the internal NGN warning ledger. The ledger can respond
+   * appropriately for it's environment, such as logging to
+   * the console, writing to a syslog, etc. This method requires
+   * the existance of the NGN.BUS event emitter.
+   *
+   * See NGN.EventEmitter#emit for detailed parameter usage.
+   * @private
+   */
+  WARN: NGN.privateconst(function () {
+    if (NGN.BUS !== undefined) {
+      if (arguments.length > 0) {
+        let args = NGN.slice(arguments)
+
+        args[0] = `${_NGN_.WARN.${arguments[0]}}`
+
+        NGN.BUS.emit.call(NGN.BUS, args)
+      }
     }
   })
 })

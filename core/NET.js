@@ -8,6 +8,7 @@
  * @singleton
  */
 (function () {
+  // CONSTANTS USED INTERNALLY
   const normalizeUrl = function (url) {
     let uri = []
 
@@ -24,18 +25,122 @@
     return uri.join('/').replace(/\:\/{3,50}/gi, '://') // eslint-disable-line no-useless-escape
   }
 
+  const hostname = NGN.nodelike ? require(os).hostname() : window.location.host
+
+  let networkInterfaces = [
+    '127.0.0.1',
+    'localhost',
+    hostname
+  ]
+
+  // Retreive local IP's and hostnames
+  if (NGN.nodelike) {
+    let data = require('os').networkInterfaces()
+    let interfaces = Object.keys(data)
+
+    for (let i = 0; i < interfaces.length; i++) {
+      let iface = interfaces[i]
+
+      for (let x = 0; x < iface.length; x++) {
+        if (iface[x].family === 'IPv4') {
+          networkInterfaces.push(iface[x].address)
+        }
+      }
+    }
+  }
+
+  networkInterfaces = NGN.dedupe(networkInterfaces)
+
+  const HttpMethods = [
+    'OPTIONS',
+    'HEAD',
+    'GET',
+    'POST',
+    'PUT',
+    'DELETE',
+    'TRACE',
+    'CONNECT'
+  ]
+
+  /**
+   * @class NGN.NET.Request
+   * Represents a network request. This class can be used
+   * to create and manipulate HTTP requests, but it does not
+   * actually transmit them. To send the request, use NGN.NET#request
+   * or one of the many common helper methods.
+   */
   class Request {
     constructor (cfg) {
       cfg = cfg || {}
 
       // Require URL and HTTP method
-      NGN.objectMissingProperties(cfg, 'url', 'method')
+      NGN.objectRequires(cfg, 'url')
+
+      if (NGN.objectHasAny(cfg, 'form', 'json')) {
+        NGN.WARN('NET.Request', '"form" and "json" configuration properties are not valid. Use "body" instead.')
+      }
 
       Object.defineProperties(this, {
-        uri: NGN.public(cfg.url),
-        method: NGN.public(NGN.coalesceb(cfg.method, 'GET')),
+        /**
+         * @cfgproperty {string} url (required)
+         * The complete URL for the request, including query parameters.
+         */
+        uri: NGN.public(normalizeUrl(cfg.url)),
+
+        /**
+         * @cfg {string} [method=GET]
+         * The HTTP method to invoke when the request is sent. The standard
+         * RFC 2616 HTTP methods include:
+         *
+         * - OPTIONS
+         * - HEAD
+         * - GET
+         * - POST
+         * - PUT
+         * - DELETE
+         * - TRACE
+         * - CONNECT
+         *
+         * There are many additional non-standard methods some remote hosts
+         * will accept, including `PATCH`, `COPY`, `LINK`, `UNLINK`, `PURGE`,
+         * `LOCK`, `UNLOCK`, `VIEW`, and many others. If the remote host
+         * supports these methods, they may be used in an NGN.NET.Request.
+         * Non-standard methods will not be prevented, but NGN will trigger
+         * a warning event if a non-standard request is created.
+         */
+        httpmethod: NGN.public(NGN.coalesceb(cfg.method, 'GET').toUpperCase()),
+
+        /**
+         * @cfg {boolean} [enforceMethodSafety=true]
+         * According to [RFC 2616](https://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html),
+         * some HTTP methods are considered idempotent (safe). These methods
+         * should have no significance to data (i.e. read-only). For example,
+         * `OPTIONS`, `HEAD`, and `GET` are all idempotent. By default, NGN.NET
+         * loosely enforces idempotence by ignoring the #body when making a
+         * request. While it is not advised, nor supported, NGN.NET can
+         * technically ignore method safety, allowing a request body to be
+         * sent to a remote server. Set this configuration to `false` to
+         * prevent NGN.NET from enforcing idempotence/safety.
+         */
+        enforceMethodSafety: NGN.private(NGN.coalesce(cfg.enforceMethodSafety, cfg.enforcemethodsafety, true)),
+
+        /**
+         * @cfg {object} [headers]
+         * Optionally supply custom headers for the request. Most standard
+         * headers will be applied automatically (when appropriate), such
+         * as `Content-Type`, `Content-Length`, and `Authorization`.
+         * In Node-like environments, a `User-Agent` will be applied containing
+         * the `hostname` of the system making the request. Any custom headers
+         * supplied will override headers managed by NGN.NET.
+         */
         headers: NGN.public(NGN.coalesceb(cfg.header)),
-        body: NGN.public(NGN.coalesce(cfg.body)),
+
+        /**
+         * @cfg {object|string|binary} [body]
+         * The body will accept text, an object, binary,
+         * @type {[type]}
+         */
+        body: NGN.public(NGN.coalesce(cfg.body),
 
         /**
          * @cfgproperty {string} username
@@ -74,7 +179,70 @@
          * [document.cookie](https://developer.mozilla.org/en-US/docs/Web/API/Document/cookie)
          * or from response headers.
          */
-        withCredentials: NGN.private(NGN.coalesce(cfg.withCredentials, true))
+        withCredentials: NGN.private(NGN.coalesce(cfg.withCredentials, true)),
+
+        /**
+         * @method domainRoot
+         * Returns the root (no http/s) of the URL.
+         * @param {string} url
+         * The URL to get the root of.
+         * @private
+         */
+        domainRoot: NGN.privateconst(function (url) {
+          let root = (url.search(/^https?\:\/\//) !== -1 ? url.match(/^https?\:\/\/([^\/?#]+)(?:[\/?#]|$)/i, '') : url.match(/^([^\/?#]+)(?:[\/?#]|$)/i, '')) // eslint-disable-line no-useless-escape
+          return root === null || root[1].length < 3 ? hostname : root[1]
+        }),
+
+        /**
+         * @method isCrossOrigin
+         * Determine if accessing a URL is considered a cross origin request.
+         * @param {string} url
+         * The URL to identify as a COR.
+         * @returns {boolean}
+         * @private
+         */
+        isCrossOrigin: NGN.privateconst(function (url) {
+          let baseUrl = this.domainRoot(url)
+
+          if (NGN.nodelike && networkInterfaces.indexOf(baseUrl)) {
+            return true
+          }
+
+          return baseUrl !== hostname
+        }),
+
+        /**
+         * @method applyAuthorizationHeader
+         * Generates and applies the authorization header for the request,
+         * based on the presence of #username, #password, or #accessToken.
+         * @private
+         */
+        applyAuthorizationHeader: NGN.privateconst(() => {
+          if (NGN.coalesceb(this.accessToken)) {
+            this.addHeader('Authorization', `Bearer ${this.accessToken}`)
+          } else if (NGN.coalesceb(this.user) && NGN.coalesceb(this.secret)) {
+            this.addHeader('Authorization', this.basicAuthToken(this.user, this.secret))
+          }
+        }),
+
+        /**
+         * @method basicAuthToken
+         * Generates a basic authentication token from a username and password.
+         * @return {[type]} [description]
+         * @private
+         */
+        basicAuthToken: NGN.privateconst((user, secret) => {
+          let hash
+
+          // Support browser and node binary to base64-ascii conversions
+          if (NGN.isFn(btoa)) {
+            hash = btoa(`${user}:${secret}`)
+          } else if (NGN.nodelike) {
+            hash = (new Buffer(`${user}:${secret}`, 'binary')).toString('base64')
+          }
+
+          return `Basic ${hash}`
+        })
       })
 
       // Convert JSON body to usable payload.
@@ -89,30 +257,71 @@
       }
     }
 
+    /**
+     * @property {string} url
+     * The URL where the request will be sent.
+     */
+    get url () {
+      return this.uri
+    }
+
+    set url (value) {
+      if (NGN.coalesceb(value) === null) {
+        NGN.WARN('NET.Request.url', 'A blank URL was identified for a request.')
+      }
+
+      this.uri = value.trim()
+    }
+
+    get method () {
+      return this.httpmethod
+    }
+
+    set method (value) {
+      if (NGN.coalesceb(value) === null) {
+        NGN.WARN('NET.Request.method', 'No HTTP method specified.')
+      }
+    }
+
+    /**
+     * @property {boolean} crossOriginRequest
+     * Indicates the request will be made to a domain outside of the
+     * one hosting the request.
+     */
+    get crossOriginRequest () {
+      return this.isCrossOrigin(this.uri)
+    }
+
+    /**
+     * @property {string} username
+     * The username that will be used in any basic authentication operations.
+     */
     get username () {
-      return this.user
+      return NGN.coalesce(this.user)
     }
 
     set username (user) {
+      user = NGN.coalesceb(user)
+
       if (this.user !== user) {
         this.user = user
         this.applyAuthorizationHeader()
       }
     }
 
+    /**
+     * @property {string} password
+     * It is possible to set a password for any basic authentication operations,
+     * but it is not possible to read a password.
+     * @setonly
+     */
     set password (secret) {
+      secret = NGN.coalesceb(secret)
+
       if (this.secret !== secret) {
         this.secret = secret
         this.applyAuthorizationHeader()
       }
-    }
-
-    /**
-     * @property {boolean} crossOrigin
-     * Indicates the request will be cross-domain and likely subject to CORS.
-     */
-    get crossOrigin () {
-
     }
 
     /**
@@ -166,38 +375,6 @@
      */
     removeHeader (key) {
       delete this.headers[key]
-    }
-
-    /**
-     * @method applyAuthorizationHeader
-     * Generates and applies the authorization header for the request,
-     * based on the presence of #username, #password, or #accessToken.
-     * @private
-     */
-    applyAuthorizationHeader () {
-      if (NGN.coalesceb(this.accessToken)) {
-        this.addHeader('Authorization', `Bearer ${this.accessToken}`)
-      } else if (NGN.coalesceb(this.user) && NGN.coalesceb(this.secret)) {
-        this.addHeader('Authorization', this.basicAuthToken(this.user, this.secret))
-      }
-    }
-
-    /**
-     * @method basicAuthToken
-     * Generates a basic authentication token from a username and password.
-     * @return {[type]} [description]
-     */
-    basicAuthToken (user, secret) {
-      let hash
-
-      // Support browser and node binary to base64-ascii conversions
-      if (NGN.isFn(btoa)) {
-        hash = btoa(`${user}:${secret}`)
-      } else if (NGN.nodelike) {
-        hash = (new Buffer(`${user}:${secret}`, 'binary')).toString('base64')
-      }
-
-      return `Basic ${hash}`
     }
   }
 
