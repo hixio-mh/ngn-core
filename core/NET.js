@@ -9,6 +9,7 @@
  */
 (function () {
   // CONSTANTS USED INTERNALLY
+  // Normalize URL syntax
   const normalizeUrl = function (url) {
     let uri = []
 
@@ -68,6 +69,7 @@
    * to create and manipulate HTTP requests, but it does not
    * actually transmit them. To send the request, use NGN.NET#request
    * or one of the many common helper methods.
+   * @private
    */
   class Request {
     constructor (cfg) {
@@ -85,7 +87,7 @@
          * @cfgproperty {string} url (required)
          * The complete URL for the request, including query parameters.
          */
-        uri: NGN.public(normalizeUrl(cfg.url)),
+        uri: NGN.private(null),
 
         /**
          * @cfg {string} [method=GET]
@@ -108,7 +110,7 @@
          * Non-standard methods will not be prevented, but NGN will trigger
          * a warning event if a non-standard request is created.
          */
-        httpmethod: NGN.public(NGN.coalesceb(cfg.method, 'GET').toUpperCase()),
+        httpmethod: NGN.private(null),
 
         /**
          * @cfg {boolean} [enforceMethodSafety=true]
@@ -137,10 +139,32 @@
 
         /**
          * @cfg {object|string|binary} [body]
-         * The body will accept text, an object, binary,
-         * @type {[type]}
+         * The body configuration supports text, an object, or a data URL or
+         * binary content. **For multi-part form data (file uploads), use
+         * the #files configuration _instead_ of this attribute.**
+         *
+         * It is also possible to construct a simple form submission
+         * (x-www-form-urlencoded) from a specially formatted key/value object
+         * conforming to the following syntax:
+         *
+         * ```json
+         * {
+         *   form: {
+         *     form_field_1: "value",
+         *     form_field_2: "value",
+         *     form_field_3: "value",
+         *   }
+         * }
+         * ```
+         * The object above will be automatically converted & url-encoded body:
+         *
+         * ```js
+         * form_field_1=value&form_field_2=value&form_field_3=value
+         * ```
+         *
+         * The appropriate headers are automatically applied.
          */
-        body: NGN.public(NGN.coalesce(cfg.body),
+        requestbody: NGN.public(NGN.coalesce(cfg.body)),
 
         /**
          * @cfgproperty {string} username
@@ -160,7 +184,7 @@
          * An access token to authenticate the request with (Bearer auth).
          * If this is configured, it will override any basic auth settings.
          */
-        accessToken: NGN.private(NGN.coalesceb(cfg.accessToken)),
+        bearerAccessToken: NGN.private(NGN.coalesceb(cfg.accessToken)),
 
         /**
          * @cfgproperty {boolean} [withCredentials=true]
@@ -219,9 +243,9 @@
          */
         applyAuthorizationHeader: NGN.privateconst(() => {
           if (NGN.coalesceb(this.accessToken)) {
-            this.addHeader('Authorization', `Bearer ${this.accessToken}`)
+            this.addHeader('Authorization', `Bearer ${this.bearerAccessToken}`, true)
           } else if (NGN.coalesceb(this.user) && NGN.coalesceb(this.secret)) {
-            this.addHeader('Authorization', this.basicAuthToken(this.user, this.secret))
+            this.addHeader('Authorization', this.basicAuthToken(this.user, this.secret), true)
           }
         }),
 
@@ -242,19 +266,100 @@
           }
 
           return `Basic ${hash}`
+        }),
+
+        prepareBody: NGN.private(() => {
+          // Request body management
+          if (this.requestbody !== null) {
+            let contentType = NGN.coalesceb(cfg.headers['Content-Type'], cfg.headers['content-type'], cfg.headers['Content-type'])
+
+            if (typeof this.requestbody === 'object') {
+              this.requestbody = JSON.stringify(this.requestbody).trim()
+
+              if (NGN.objectHasExactly(this.requestbody, 'form')) {
+                let form = this.requestbody.form
+
+                let keys = Object.keys(form)
+                let dataString = []
+
+                for (let i = 0; i < keys.length; i++) {
+                  if (NGN.isFn(form[keys[i]])) {
+                    throw new Error('Invalid form data. Form data cannot be a complex data format such as an object or function.')
+                  } else if (typeof form[keys[i]] === 'object') {
+                    dataString.push(`${keys[i]}=${encodeURIComponent(JSON.stringify(form[keys[i]]))}`)
+                  } else {
+                    dataString.push(`${keys[i]}:${encodeURIComponent(form[keys[i]])}`)
+                  }
+                }
+
+                this.requestbody = dataString.join('&')
+              } else {
+                this.addHeader('Content-Length', this.requestbody.length, false)
+                this.addHeader('Content-Type', NGN.coalesceb(contentType, 'application/json'), false)
+              }
+            } else if (typeof this.requestbody === 'string') {
+              if (contentType !== null) {
+                // Check for form data
+                let match = /([^=]+)\=([^&]+)/.exec(this.requestbody)
+
+                if (match !== null) {
+                  this.addHeader('Content-Type', 'application/x-www-form-urlencoded', false)
+                } else {
+                  if (this.requestbody.trim().substr(0, 5).toLowerCase() === 'data') {
+                    // Crude Data URL mimetype detection
+                    match = /^data\:(.*)\;/gi.exec(this.requestbody.trim())
+
+                    if (match !== null) {
+                      this.addHeader('Content-Type', match[0], false)
+                    }
+                  } else if (this.requestbody.trim().test(/\<\?xml.*/gi)) {
+                    // Crude XML Detection
+                    this.addHeader('Content-Type', 'application/xml', false)
+                  } else if (this.requestbody.trim().test(/\<html.*/gi)) {
+                    // Crude HTML Detection
+                    this.addHeader('Content-Type', 'text/html', false)
+                  }
+
+                  this.addHeader('Content-Type', 'text/plain', false)
+                }
+              }
+
+              this.addHeader('Content-Type', this.requestbody.length, false)
+            } else {
+              NGN.WARN('NET.Request.body', `The request body must cannot be ${typeof this.requestbody}. Please provide a string, object, or binary value for the body.`)
+            }
+          }
         })
       })
 
-      // Convert JSON body to usable payload.
-      if (this.body !== null && typeof this.body === 'object') {
-        this.body = JSON.stringify(this.body).trim()
-        this.addHeader('Content-Type', 'application/json', false)
-      }
+      this.url = cfg.url
+      this.method = NGN.coalesceb(cfg.method, 'GET')
+
+      this.prepareBody()
 
       // Apply authorization if applicable
-      if (NGN.coalesce(this.user, this.secret, this.accessToken)) {
+      if (NGN.coalesce(this.user, this.secret, this.bearerAccessToken) !== null) {
         this.applyAuthorizationHeader()
       }
+    }
+
+    /**
+     * @property {string} protocol
+     * The protocol used to make the request.
+     * @readonly
+     */
+    get protocol () {
+      if (this.uri === null) {
+        return null
+      }
+
+      let match = /^(.*)\:\/\//i.exec(this.uri)
+
+      if (match !== null) {
+        return match[0].toLowerCase()
+      }
+
+      return null
     }
 
     /**
@@ -270,7 +375,7 @@
         NGN.WARN('NET.Request.url', 'A blank URL was identified for a request.')
       }
 
-      this.uri = value.trim()
+      this.uri = normalizeUrl(value.trim())
     }
 
     get method () {
@@ -278,9 +383,30 @@
     }
 
     set method (value) {
+      if (this.httpmethod === value) {
+        return
+      }
+
       if (NGN.coalesceb(value) === null) {
         NGN.WARN('NET.Request.method', 'No HTTP method specified.')
       }
+
+      value = value.trim().toUpperCase()
+
+      if (HttpMethods.indexOf(value) < 0) {
+        NGN.WARN('NET.Request.method', `A non-standard HTTP method was recognized in a request: ${value}.`)
+      }
+
+      this.httpmethod = value
+    }
+
+    get body () {
+      return this.requestbody
+    }
+
+    set body (value) {
+      this.requestbody = value
+      this.prepareBody()
     }
 
     /**
@@ -325,6 +451,20 @@
     }
 
     /**
+     * @property {string} accessToken
+     * Supply a bearer access token for basic authenticaiton operations.
+     * @setonly
+     */
+    set accessToken (token) {
+      token = NGN.coalesceb(token)
+
+      if (this.bearerAccessToken !== token) {
+        this.bearerAccessToken = token
+        this.applyAuthorizationHeader()
+      }
+    }
+
+    /**
      * @property {object} queryParameters
      * Returns a key/value object containing the URL query parameters of the
      * request, as defined in the #url.
@@ -361,7 +501,7 @@
      * the original header from being overwritten.
      */
     addHeader (key, value, overwriteExisting = true) {
-      if (!this.headers.hasOwnProperty(key) || overwriteExisting) {
+      if (this.headers[key] === undefined || overwriteExisting) {
         this.headers[key] = value
       }
     }
@@ -378,6 +518,285 @@
     }
   }
 
+  class Network {
+    constructor () {
+      Object.defineProperties(this, {
+        send: NGN.private((request, callback) => {
+
+        }),
+
+        /**
+         * @method parseRequestConfiguration
+         * Prepare common configuration attributes for a request.
+         * @return {NGN.NET.Request}
+         * @private
+         */
+        parseRequestConfiguration: NGN.private((cfg, method = 'GET') => {
+          if (typeof cfg === 'string') {
+            cfg = {
+              url: cfg
+            }
+          }
+
+          cfg = cfg || {}
+          cfg.method = method
+          cfg.url = NGN.coalesceb(cfg.url, NGN.nodelike ? window.location : hostname)
+
+          return new NGN.NET.Request(cfg)
+        }),
+
+        // Returns a method for sending the request, after preparing the request.
+        makeRequest: NGN.private((method) => {
+          const me = this
+
+          return function () {
+            let callback = arguments[arguments.length - 1]
+            let request = me.parseRequestConfiguration.call(me, arguments)
+
+            request.method = method
+
+            // Support local file system retrieval in node-like environments.
+            // This short-circuits the request and reads the file system instead.
+            if (NGN.nodelike && request.protocol === 'file') {
+              if (!NGN.isFn(callback)) {
+                throw new Error('A callback is required when retrieving system files in a node-like environment.')
+              }
+
+              let response = {
+                status: require('fs').existsSync(request.uri.replace('file://', '')) ? 200 : 400
+              }
+
+              response.responseText = response.status === 200 ? require('fs').readFileSync(request.uri.replace('file://', '')).toString() : 'File does not exist or could not be found.'
+
+              return callback(null, response)
+            }
+
+            // Send the request and assume the last argument is a callback function.
+            me.send(request, callback)
+          }
+        }),
+
+        // Helper aliases (undocumented)
+        OPTIONS: NGN.privateconst(this.options.bind(this)),
+        HEAD: NGN.privateconst(this.head.bind(this)),
+        GET: NGN.privateconst(this.get.bind(this)),
+        POST: NGN.privateconst(this.post.bind(this)),
+        PUT: NGN.privateconst(this.put.bind(this)),
+        DELETE: NGN.privateconst(this.delete.bind(this)),
+        TRACE: NGN.privateconst(this.trace.bind(this)),
+        JSON: NGN.privateconst(this.json.bind(this))
+      })
+    }
+
+    /**
+     * @method request
+     * Send a request. In most cases, it is easier to use one of the built-in
+     * request functions (#get, #post, #put, #delete, #json, etc). This method
+     * is available for creating custom requests.
+     * @param  {Object} configuration
+     * Provide a #NGN.NET.Request configuration.
+     * @param  {Function} callback
+     * The callback to execute when the request is complete.
+     */
+    request (cfg, callback) {
+      cfg = cfg || {}
+      cfg.method = NGN.coalesceb(cfg.method, 'GET')
+
+      if (NGN.isFn(this[cfg.method])) {
+        this.makeRequest(cfg.method).call(this, arguments)
+      } else {
+        this.send(new NGN.NET.Request(cfg), callback)
+      }
+    }
+
+    /**
+     * @method options
+     * Issue a `OPTIONS` request.
+     * @param {string|object} url
+     * The URL to issue the request to, or a configuration object.
+     * The configuration object accepts all of the #NGN.NET.Request
+     * configuration options (except method, which is defined automatically).
+     * @param {Function} callback
+     * A callback method to run when the request is complete.
+     * This receives the response object as the only argument.
+     */
+    options () {
+      this.preflight('OPTIONS').call(this, arguments)
+    }
+
+    /**
+     * @method head
+     * Issue a `HEAD` request.
+     * @param {string|object} url
+     * The URL to issue the request to, or a configuration object.
+     * The configuration object accepts all of the #NGN.NET.Request
+     * configuration options (except method, which is defined automatically).
+     * @param {Function} callback
+     * A callback method to run when the request is complete.
+     * This receives the response object as the only argument.
+     */
+    head () {
+      this.preflight('HEAD').call(this, arguments)
+    }
+
+    /**
+     * @method get
+     * Issue a `GET` request.
+     * @param {string|object} url
+     * The URL to issue the request to.
+     * The configuration object accepts all of the #NGN.NET.Request
+     * configuration options (except method, which is defined automatically).
+     * @param {Function} callback
+     * A callback method to run when the request is complete.
+     * This receives the response object as the only argument.
+     */
+    get () {
+      this.makeRequest('GET').call(this, arguments)
+    }
+
+    /**
+     * @method post
+     * Issue a `POST` request.
+     * @param {string|object} url
+     * The URL to issue the request to.
+     * The configuration object accepts all of the #NGN.NET.Request
+     * configuration options (except method, which is defined automatically).
+     * @param {Function} callback
+     * A callback method to run when the request is complete.
+     * This receives the response object as the only argument.
+     */
+    post () {
+      this.makeRequest('POST').call(this, arguments)
+    }
+
+    /**
+     * @method put
+     * Issue a `PUT` request.
+     * @param {string|object} url
+     * The URL to issue the request to.
+     * The configuration object accepts all of the #NGN.NET.Request
+     * configuration options (except method, which is defined automatically).
+     * @param {Function} callback
+     * A callback method to run when the request is complete.
+     * This receives the response object as the only argument.
+     */
+    put () {
+      this.makeRequest('PUT').call(this, arguments)
+    }
+
+    /**
+     * @method delete
+     * Issue a `DELETE` request.
+     * @param {string|object} url
+     * The URL to issue the request to.
+     * The configuration object accepts all of the #NGN.NET.Request
+     * configuration options (except method, which is defined automatically).
+     * @param {Function} callback
+     * A callback method to run when the request is complete.
+     * This receives the response object as the only argument.
+     */
+    delete () {
+      this.makeRequest('DELETE').call(this, arguments)
+    }
+
+    /**
+     * @method trace
+     * Issue a `TRACE` request. This is a debugging method, which
+     * echoes input back to the user. It is a standard HTTP method,
+     * but considered a security risk by many practioners and may
+     * not be supported by remote hosts.
+     * @param {string|object} url
+     * The URL to issue the request to.
+     * The configuration object accepts all of the #NGN.NET.Request
+     * configuration options (except method, which is defined automatically).
+     * @param {Function} callback
+     * A callback method to run when the request is complete.
+     * This receives the response object as the only argument.
+     */
+    trace () {
+      NGN.WARN('NGN.NET.Request.method', 'An HTTP TRACE request was made.')
+      this.makeRequest('TRACE').call(this, arguments)
+    }
+
+    /**
+     * @method json
+     * This is a shortcut method for creating a `GET` request and
+     * auto-processing the response body into a JSON object.
+     * @param  {string} url
+     * The URL to issue the request to.
+     * @param  {Function} callback
+     * This receives a JSON response object from the server.
+     * @param {Error} [callback.error=null]
+     * If the request cannot be completed for any reason, this argument will be
+     * populated with the error. If the request is successful, this will be `null`.
+     * @param {Object} callback.data
+     * The JSON response from the remote URL.
+     */
+    json () {
+      let callback = arguments[arguments.length - 1]
+
+      if (!NGN.isFn(callback)) {
+        throw new Error('NGN.NET.json requires a callback method.')
+      }
+
+      // Request method is "GET" by default
+      let request = this.parseRequestConfiguration.call(this, arguments)
+
+      this.send(request, function (response) {
+        try {
+          let responseData = JSON.parse(response.responseText)
+          callback(null, responseData)
+        } catch (e) {
+          e.response = NGN.coalesce(response)
+          callback(e, null)
+        }
+      })
+    }
+
+    /**
+     * @method jsonp
+     * Execute a request via JSONP. JSONP is only available in browser
+     * environments, since it's operation is dependent on the existance of
+     * the DOM. However; this may work with some headless browsers.
+     * @param {string} url
+     * The URL of the JSONP endpoint.
+     * @param {function} callback
+     * Handles the response.
+     * @param {Error} [callback.error=null]
+     * If an error occurred, this will be populated. If no error occurred, this will
+     * be null.
+     * @param {object|array} callback.response
+     * The response.
+     * @environment browser
+     */
+    jsonp () {
+      if (NGN.nodelike) {
+        NGN.WARN('NET.Request', 'An unsupported JSONP request was made.')
+      } else {
+        const fn = 'jsonp_callback_' + Math.round(100000 * Math.random())
+
+        window[fn] = (data) => {
+          delete window[fn]
+
+          document.body.removeChild(script)
+
+          return callback(null, data)
+        }
+
+        let script = document.createElement('script')
+
+        script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + fn
+
+        script.addEventListener('error', (e) => {
+          delete window[fn]
+
+          return callback(new Error('The JSONP request was blocked. This may be the result of an invalid URL, cross origin restrictions, or the remote server may not be online.'))
+        })
+
+        document.body.appendChild(script)
+      }
+    }
+  }
 
   const parser = new DOMParser()
   let fs = NGN.nodelike ? require('fs') : null
@@ -464,55 +883,6 @@
           } else {
             throw new Error(url + ' does not exist or could not be found.')
           }
-        }),
-
-        /**
-         * @method normalizeUrl
-         * Cleanup a URL.
-         * @private
-         */
-        normalizeUrl: NGN.privateconst(function (url) {
-          let uri = []
-
-          url.split('/').forEach(function (el) {
-            if (el === '..') {
-              uri.pop()
-            } else if (el !== '.') {
-              uri.push(el)
-            }
-          })
-
-          return uri.join('/').replace(/\:\/{3,50}/gi, '://') // eslint-disable-line no-useless-escape
-        }),
-
-        /**
-         * @method domainRoot
-         * Returns the root (no http/s) of the URL.
-         * @param {string} url
-         * The URL to get the root of.
-         * @private
-         */
-        domainRoot: NGN.privateconst(function (url) {
-          let r = (
-            url.search(/^https?\:\/\//) !== -1 ? // eslint-disable-line no-useless-escape
-            url.match(/^https?\:\/\/([^\/?#]+)(?:[\/?#]|$)/i, '') : // eslint-disable-line no-useless-escape
-            url.match(/^([^\/?#]+)(?:[\/?#]|$)/i, '') // eslint-disable-line no-useless-escape
-          )
-
-          return r === null || r[1].length < 3 ? window.location.host : r[1]
-        }),
-
-        // TODO: Make this frontend only
-        /**
-         * @method isCrossOrigin
-         * Determine if accessing a URL is considered a cross origin request.
-         * @param {string} url
-         * The URL to identify as a COR.
-         * @returns {boolean}
-         * @private
-         */
-        isCrossOrigin: NGN.privateconst(function (url) {
-          return this.domainRoot(url) !== window.location.host
         }),
 
         // TODO: CDK

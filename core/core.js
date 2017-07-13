@@ -1123,7 +1123,7 @@ Object.defineProperties(NGN, {
       if (arguments.length > 0) {
         let args = NGN.slice(arguments)
 
-        args[0] = `${_NGN_.WARN.${arguments[0]}}`
+        args[0] = `_NGN_.WARN.${arguments[0]}}`
 
         NGN.BUS.emit.call(NGN.BUS, args)
       }

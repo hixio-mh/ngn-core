@@ -48,7 +48,8 @@ test('Method Existance', (t) => {
     'objectRequires',
     'needs',
     'createAlias',
-    'createException'
+    'createException',
+    'WARN'
   ]
 
   for (let method of methodList) {
