@@ -1,3 +1,4 @@
+
 'use strict'
 
 /**
@@ -1522,7 +1523,7 @@ class NgnDataModel extends NGN.EventEmitter {
     const me = this
 
     let oldData = model.data
-    model.on('load', () => {
+    model.on('load', function () {
       let payload = {
         action: 'update',
         field: name,
