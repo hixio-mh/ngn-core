@@ -749,12 +749,17 @@ class NgnDataModel extends NGN.EventEmitter {
       if (this._reverseDataMap !== null) {
         return this._reverseDataMap
       }
+
       let rmap = {}
       const me = this
-      Object.keys(this._dataMap).forEach(function (attr) {
-        rmap[me._dataMap[attr]] = attr
-      })
+      let keys = Object.keys(this._dataMap)
+
+      for (let i = 0; i < keys.length; i++) {
+        rmap[me._dataMap[keys[i]]] = keys[i]
+      }
+
       this._reverseDataMap = rmap
+
       return rmap
     }
     return null
@@ -1034,7 +1039,7 @@ class NgnDataModel extends NGN.EventEmitter {
    * @returns {Boolean}
    */
   hasRelationship (fieldname) {
-    return this.joins.hasOwnProperty(fieldname)
+    return this.joins[fieldname] !== undefined
   }
 
   /**
@@ -1107,7 +1112,7 @@ class NgnDataModel extends NGN.EventEmitter {
    * @returns {Boolean}
    */
   hasDataField (fieldname) {
-    return this.fields.hasOwnProperty(fieldname)
+    return this.fields[fieldname] !== undefined
   }
 
   /**
@@ -1763,7 +1768,7 @@ class NgnDataModel extends NGN.EventEmitter {
    * @returns {boolean}
    */
   hasVirtualField (fieldname) {
-    return this.virtuals.hasOwnProperty(fieldname)
+    return this.virtuals[fieldname] !== undefined
   }
 
   /**
@@ -1881,6 +1886,10 @@ class NgnDataModel extends NGN.EventEmitter {
 
     for (let x = 0; x < attributes.length; x++) {
       let key = attributes[x]
+
+      // if (this._dataMap !== null && data[this.reverseMap[key]] !== undefined) {
+      //   data[key] = data[this.reverseMap[key]]
+      // }
 
       if (this.hasDataField(key)) {
         if (this.raw.hasOwnProperty(key)) {
