@@ -425,8 +425,8 @@ class NgnDataStore extends NGN.EventEmitter {
       }
 
       if (this.model) {
-        record = new this.model() // eslint-disable-line new-cap
-        record.load(data, fast)
+        record = new this.model(data, fast) // eslint-disable-line new-cap
+        // record.load(data, fast)
       } else {
         record = data
       }
@@ -434,7 +434,7 @@ class NgnDataStore extends NGN.EventEmitter {
       record = data
     }
 
-    if (record.hasOwnProperty('_store')) {
+    if (record._store !== undefined) {
       record._store = this
     }
 
@@ -650,7 +650,7 @@ class NgnDataStore extends NGN.EventEmitter {
     let resultSet = []
 
     for (let i = 0; i < data.length; i++) {
-      resultSet.push(this.add(data[i], true))
+      resultSet.push(this.add(data[i], true, fast))
     }
 
     this._loading = false
@@ -662,10 +662,7 @@ class NgnDataStore extends NGN.EventEmitter {
     if (event !== null) {
       setTimeout(() => {
         this.emit(event || 'load', resultSet)
-        resultSet = null
       }, 100)
-    } else {
-      resultSet = null
     }
   }
 
