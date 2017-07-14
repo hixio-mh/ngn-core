@@ -1867,29 +1867,17 @@ class NgnDataModel extends NGN.EventEmitter {
   load (data, fast = false) {
     data = data || {}
 
-    // Handle data maps
-    if (this._dataMap !== null) {
-      let keys = Object.keys(this.reverseMap)
-
-      for (let i = 0; i < keys.length; i++) {
-        let key = keys[i]
-
-        if (data.hasOwnProperty(key)) {
-          data[this.reverseMap[key]] = data[key]
-          delete data[key]
-        }
-      }
-    }
-
     // Loop through the keys and add data fields
     let attributes = Object.keys(data)
 
     for (let x = 0; x < attributes.length; x++) {
       let key = attributes[x]
 
-      // if (this._dataMap !== null && data[this.reverseMap[key]] !== undefined) {
-      //   data[key] = data[this.reverseMap[key]]
-      // }
+      // Handle data maps
+      if (this._dataMap !== null && this.reverseMap[key] !== undefined) {
+        data[this.reverseMap[key]] = data[key]
+        key = this.reverseMap[key]
+      }
 
       if (this.hasDataField(key)) {
         if (this.raw.hasOwnProperty(key)) {
@@ -1919,12 +1907,12 @@ NGN.DATA = NGN.DATA || {}
 // Object.defineProperty(NGN.DATA, 'Model', NGN.public(Entity))
 
 Object.defineProperties(NGN.DATA, {
-  Model: NGN.const(function (cfg) {
+  Model: NGN.const(function (cfg, fast = false) {
     const ModelLoader = function (data) {
       let model = new NgnDataModel(cfg)
 
       if (data) {
-        model.load(data)
+        model.load(data, fast)
       }
 
       return model
