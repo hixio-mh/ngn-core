@@ -193,8 +193,7 @@ NGN.inherit(Object.defineProperties({}, {
    * @deprecated
    */
   bind: NGN.privateconst(function () {
-    console.warn('DEPRECATED: NGN.BUS.bind is now NGN.BUS.forward')
-    this.forward.apply(this, arguments)
+    return NGN.deprecate(this.forward, 'NGN.BUS.bind is now NGN.BUS.forward')(...arguments)
   }),
 
   /**
@@ -292,8 +291,7 @@ NGN.inherit(Object.defineProperties({}, {
    * @deprecated
    */
   queue: NGN.privateconst(function () {
-    console.warn('DEPRECATED: NGN.BUS.queue is now NGN.BUS.delayEmit')
-    this.delayEmit.apply(this, arguments)
+    return NGN.deprecate(this.delayEmit, 'NGN.BUS.queue is now NGN.BUS.delayEmit')(...arguments)
   }),
 
   /**
