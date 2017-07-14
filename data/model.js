@@ -1782,7 +1782,7 @@ class NgnDataModel extends NGN.EventEmitter {
    * The new value of the field.
    * @private
    */
-  setSilent (fieldname, value) {
+  setSilent (fieldname, value, fast = false) {
     if (fieldname === this.idAttribute) {
       this.id = value
       return
@@ -1796,7 +1796,7 @@ class NgnDataModel extends NGN.EventEmitter {
         return
       }
 
-      this[fieldname].load(value)
+      this[fieldname].load(value, fast)
 
       return
     }
@@ -1886,7 +1886,7 @@ class NgnDataModel extends NGN.EventEmitter {
           this.id = data[key]
         }
       } else if (this.hasRelationship(key)) {
-        this.rawjoins[key].load(data[key])
+        this.rawjoins[key].load(data[key], fast)
       } else if (key !== this.idAttribute && !this.hasMetaField(key)) {
         try {
           const source = NGN.stack.pop()
@@ -1907,8 +1907,8 @@ NGN.DATA = NGN.DATA || {}
 // Object.defineProperty(NGN.DATA, 'Model', NGN.public(Entity))
 
 Object.defineProperties(NGN.DATA, {
-  Model: NGN.const(function (cfg, fast = false) {
-    const ModelLoader = function (data) {
+  Model: NGN.const(function (cfg) {
+    const ModelLoader = function (data, fast = false) {
       let model = new NgnDataModel(cfg)
 
       if (data) {
